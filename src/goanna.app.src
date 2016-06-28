@@ -1,0 +1,12 @@
+{application, goanna,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { goanna_app, []}},
+  {env, []}
+ ]}.
