@@ -1,10 +1,10 @@
-.eunit
-deps
-*.o
+ebin/*
 *.beam
+deps/*
 *.plt
+*.DS_Store
+*.log
+apps/*/logs
 erl_crash.dump
-ebin
-rel/example_project
-.concrete/DEV_MODE
-.rebar
+Mnesia*
+.rebar/
