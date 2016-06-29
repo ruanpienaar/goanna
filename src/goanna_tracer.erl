@@ -10,6 +10,7 @@
 -define(SERVER, ?MODULE).
 -define(STATE, goanna_tracer_state).
 -record(?STATE, {}).
+-include_lib("goanna.hrl").
 
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, {}, []).
@@ -23,8 +24,10 @@ tracer() ->
     case whereis(dbg) of
         undefined ->
             {ok,P} = dbg:start(),
+            ?INFO("[~p] dbg:start PID ~p", [?MODULE, P]),
             link(P);
         P ->
+            ?INFO("[~p] dbg PID ~p", [?MODULE, P]),
             link(P),
             ok
     end,
@@ -32,8 +35,7 @@ tracer() ->
         gen_server:cast(?MODULE, Trace)
     end,
     {ok, TracerPid} = dbg:tracer(process, {TraceFn, ok}),
-    io:format("TracerPid : ~p\n", [TracerPid]),
-    % link(TracerPid),
+    ?INFO("[~p] dbg tracer PID ~p\n\n", [?MODULE, TracerPid]),
     ok.
 
 handle_call(_Request, _From, State) ->
@@ -82,12 +84,14 @@ handle_trace_message(TrcMsg) ->
             %     [Node, Cookie, TrcMsg]),
             true = goanna_db:store([trace, Node, Cookie], TrcMsg);
         [] ->
-            io:format("No Node!~n", [])
+            % io:format("No Node!~n", [])
+            ?INFO("[~p] Recv Trace Message for undefined node...~n~p",
+                [?MODULE, TrcMsg])
     end.
 %% --------
 
 handle_info(Info, State) ->
-    io:format("Info : ~p\n", [Info]),
+    ?INFO("[~p] handle_info(~p, State)", [Info, State]),
     {noreply, State}.
 
 terminate(_Reason, _State) ->

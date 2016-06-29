@@ -24,7 +24,6 @@
 
 start_link() ->
     R = supervisor:start_link({local, ?MODULE}, ?MODULE, []),
-
     %%
     % try
     %     dbg:cn(node())
@@ -32,12 +31,6 @@ start_link() ->
     %     _C:_E ->
     %         ok
     % end,
-
-    ?INFO("------------------"),
-    ?INFO("TRACER PID: ~p", [whereis(dbg)]),
-    ?INFO("~p~n", [ erlang:process_info(whereis(dbg), [dictionary]) ]),
-    ?INFO("------------------"),
-
     R.
 
 %% ===================================================================
@@ -48,6 +41,7 @@ init([]) ->
     goanna_db:init(),
     SysConfNodes = application:get_env(goanna, nodes, []),
     Children = lists:map(fun({Node, Cookie}) ->
+            goanna_db:init_node([Node, Cookie]),
             ?CHILD(id(Node,Cookie), goanna, worker, [Node, Cookie])
         end, SysConfNodes),
 
