@@ -1,5 +1,8 @@
 -module(goanna_tracer).
--export([start_link/0]).
+-export([
+    start_link/0,
+    tracer/0
+]).
 
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -12,6 +15,10 @@ start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, {}, []).
 
 init({}) ->
+    tracer(),
+    {ok, #?STATE{}}.
+
+tracer() ->
     ok = dbg:stop_clear(),
     case whereis(dbg) of
         undefined ->
@@ -22,12 +29,12 @@ init({}) ->
             ok
     end,
     TraceFn = fun (Trace, _) ->
-        gen_server:cast(?MODULE, {trace_msg, Trace})
+        gen_server:cast(?MODULE, Trace)
     end,
     {ok, TracerPid} = dbg:tracer(process, {TraceFn, ok}),
     io:format("TracerPid : ~p\n", [TracerPid]),
-    link(TracerPid),
-    {ok, #?STATE{}}.
+    % link(TracerPid),
+    ok.
 
 handle_call(_Request, _From, State) ->
     {reply, {error, unknown_call}, State}.
@@ -39,21 +46,45 @@ handle_call(_Request, _From, State) ->
 %%     {seq_trace, Label, Info} |
 %%     {seq_trace, Label, Info, ReportedTS} |
 %%     {drop, NumberOfDroppedItems}
-handle_cast({trace_msg, TrcMsg}, State) ->
-    Pid = element(2, TrcMsg),
-    Node = node(Pid),
-    io:format("Trace for node: ~p~n", [Node]),
-    case ets:lookup(nodelist, Node) of
-        [{Node, Cookie}] ->
-            io:format("Node: ~p, Cookie~p~n~p~n",
-                [Node, Cookie, TrcMsg]);
-        [] ->
-            io:format("No Node!~n", [])
-    end,
+handle_cast(TrcMsg = {trace, _Pid, _Label, _Info}, State) ->
+    handle_trace_message(TrcMsg),
+    {noreply, State};
+handle_cast(TrcMsg = {trace, _Pid, _Label, _Info, _Extra}, State) ->
+    handle_trace_message(TrcMsg),
+    {noreply, State};
+handle_cast(TrcMsg = {trace_ts, _Pid, _Label, _Info, _ReportedTS}, State) ->
+    io:format("no implementation yet...~n~p~n", [TrcMsg]),
+    {noreply, State};
+handle_cast(TrcMsg = {trace_ts, _Pid, _Label, _Info, _Extra, _ReportedTS}, State) ->
+    io:format("no implementation yet...~n~p~n", [TrcMsg]),
+    {noreply, State};
+handle_cast(TrcMsg = {seq_trace, _Label, _Info}, State) ->
+    io:format("no implementation yet...~n~p~n", [TrcMsg]),
+    {noreply, State};
+handle_cast(TrcMsg = {seq_trace, _Label, _Info, _ReportedTS}, State) ->
+    io:format("no implementation yet...~n~p~n", [TrcMsg]),
+    {noreply, State};
+handle_cast(TrcMsg = {drop, _NumberOfDroppedItems}, State) ->
+    io:format("no implementation yet...~n~p~n", [TrcMsg]),
     {noreply, State};
 handle_cast(Msg, State) ->
     io:format("!!! UNKNOWN CAST~n~p~n\n", [Msg]),
     {noreply, State}.
+
+%% --------
+handle_trace_message(TrcMsg) ->
+    Pid = element(2, TrcMsg),
+    Node = node(Pid),
+    % io:format("Trace for node: ~p~n", [Node]),
+    case ets:lookup(nodelist, Node) of
+        [{Node, Cookie}] ->
+            % io:format("Node: ~p, Cookie~p~n~p~n",
+            %     [Node, Cookie, TrcMsg]),
+            true = goanna_db:store([trace, Node, Cookie], TrcMsg);
+        [] ->
+            io:format("No Node!~n", [])
+    end.
+%% --------
 
 handle_info(Info, State) ->
     io:format("Info : ~p\n", [Info]),
@@ -64,3 +95,5 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+%% --------

@@ -17,3 +17,9 @@
         lager:error(Msg)).
 -define(ERROR(Msg, Args),
         lager:error(Msg, Args)).
+
+-record(trc_pattern,{
+    m,
+    f,
+    a
+}).

@@ -13,9 +13,9 @@ start_link() ->
 
 init({}) ->
 
-    ok = net_kernel:monitor_nodes(true, [{node_type, all}, nodedown_reason]),
+    % ok = net_kernel:monitor_nodes(true, [{node_type, all}, nodedown_reason]),
 
-    {ok, undefined}.
+    {ok, #?STATE{}}.
 
 handle_call(_Request, _From, State) ->
     {reply, {error, unknown_call}, State}.
