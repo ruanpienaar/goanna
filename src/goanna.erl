@@ -1,14 +1,20 @@
 -module(goanna).
 
 -behaviour(gen_server).
--export([start/0,
-         start_link/2,
-         init/1,
-         handle_call/3,
-         handle_cast/2,
-         handle_info/2,
-         terminate/2,
-         code_change/3
+-export([
+    start/0,
+    trace/1, trace/2, trace/3,
+    stop_trace/0
+]).
+
+-export([
+    start_link/2,
+    init/1,
+    handle_call/3,
+    handle_cast/2,
+    handle_info/2,
+    terminate/2,
+    code_change/3
 ]).
 -define(STATE, goanna_state).
 -record(?STATE, {connected=false,
@@ -20,6 +26,9 @@
                  trace_module
                 }).
 -include_lib("goanna.hrl").
+
+%%------------------------------------------------------------------------
+%% API
 
 start() ->
     ?INFO("STARTING ................... \n"),
@@ -35,80 +44,122 @@ start() ->
     ok = application:start(lager),
     ok = application:start(goanna).
 
-name(Node, Cookie) ->
-    goanna_sup:id(Node, Cookie).
+trace(Module) ->
+    cluster_foreach({trace, Module}).
+
+trace(Module, Function) ->
+    cluster_foreach({trace, Module, Function}).
+
+trace(Module, Function, Arity) ->
+    cluster_foreach({trace, Module, Function, Arity}).
+
+stop_trace() ->
+    cluster_foreach(stop_trace).
+
+cluster_foreach(Msg) ->
+    lists:foreach(
+        fun({Node, Cookie}) ->
+            whereis(goanna_sup:id(Node, Cookie)) ! Msg
+        end, ets:tab2list(nodelist)
+    ).
+
+%%------------------------------------------------------------------------
 
 start_link(Node, Cookie) ->
-    gen_server:start_link({local, name(Node, Cookie)},
+    Name = goanna_sup:id(Node, Cookie),
+    gen_server:start_link({local, Name},
                           ?MODULE, {Node, Cookie}, []).
 
 init({Node, Cookie}) ->
-    true = ets:insert(nodelist, {Node,Cookie}),
-    case est_rem_conn(#?STATE{node=Node, cookie=Cookie}) of
-        {ok, State} ->
-            ok = do_tracing(Node),
-            true = erlang:monitor_node(Node, true),
-            case State#?STATE.connect_attempt_ref of
-                undefined -> ok;
-                TRef      -> timer:cancel(TRef)
-            end,
-            {ok, State#?STATE{ connect_attempt_ref = undefined }};
-        R ->
-            R
-    end.
+    goanna_db:init_node([Node, Cookie]),
+    est_rem_conn(#?STATE{node=Node, cookie=Cookie}, startup).
 
-est_rem_conn(#?STATE{ node=Node, cookie=Cookie } = State) ->
-    case ((erlang:set_cookie(Node,Cookie)) andalso (net_kernel:connect(Node))) of
+est_rem_conn(#?STATE{ node=Node, cookie=Cookie } = State, Action) ->
+    case do_rem_conn(Node, Cookie) of
         true ->
-            {ok, State#?STATE{connected=true}};
+            ?INFO("Connected..."),
+
+            case Action of
+                reconnect ->
+                    ?INFO("Attempting to re-add the other nodes"),
+                    % goanna_tracer:tracer(),
+                    lists:foreach(
+                        fun
+                        ({N, C}) when N==Node, C==Cookie ->
+                            ok;
+                        ({OtherNode, _C}) ->
+                            ?INFO("RE-ADDING ~p dbg:n/1", [Node]),
+                            add_node(OtherNode)
+                        end, ets:tab2list(nodelist)
+                    );
+                _ ->
+                    ok
+            end,
+
+            State2 = trace_steps(State),
+            {ok, State2#?STATE{connected=true, connect_attempt_ref = undefined }};
         false ->
             {ok, reconnect(State)}
     end.
 
-do_tracing(Node) ->
+do_rem_conn(Node, Cookie) ->
+    ((erlang:set_cookie(Node,Cookie)) andalso (net_kernel:connect(Node))).
+
+trace_steps(#?STATE{node = Node, cookie = Cookie} = State) ->
+    ?INFO("------------------"),
+    ?INFO("TRACER PID: ~p", [whereis(dbg)]),
+    ?INFO("~p~n", [ erlang:process_info(whereis(dbg), [dictionary]) ]),
+    ?INFO("------------------"),
+    State2 = do_tracing(State, Node, Cookie),
+    true = erlang:monitor_node(Node, true),
+    case State2#?STATE.connect_attempt_ref of
+        undefined -> ok;
+        TRef      -> timer:cancel(TRef)
+    end,
+    State2.
+
+do_tracing(State, Node, Cookie) ->
     case node() of
         Node ->
-            ok;
+            State;
         _ ->
-
-            % try, because, could already be started ....
-            % try
-
-            %     RD = rpc:call(Node, dbg, start, []),
-            %     ?INFO("RD:~p~n", [RD])
-            % catch
-            %     C:E ->
-            %         ok
-            % end,
-
-            % ok = gen_server:call(goanna_tracer, {tracer, Node}),
-            % rpc:call(Node, dbg, stop, []),
-
-            % TraceFn = fun (Trace, _) ->
-            %             io:format(".", [Trace])
-            %         end,
-
-            % FunStr = "fun(Trace, _) -> io:format(\"trace\") end.",
-            % {ok, Tokens, _} = erl_scan:string(FunStr),
-            % {ok, [Form]} = erl_parse:parse_exprs(Tokens),
-            % Bindings = erl_eval:add_binding('B', 2, erl_eval:new_bindings()),
-            % {value, TraceFn, _} = erl_eval:expr(Form, Bindings),
-
-            case dbg:n(Node) of
-                {ok, Node} ->
-                    ok;
-                {error,{already_started,_}} ->
-                    ok
-            end,
-
-            % RT = rpc:call(Node, dbg, tracer, [process, {TraceFn, ok}]),
-            % RT = rpc:call(Node, dbg, tracer, []),
-            % ?INFO("RT:~p~n", [RT]),
+            add_node(Node),
             {ok, MatchDesc} = dbg:p(all, call),
-            % {ok, MatchDesc} = dbg:p(all, [c, timestamp]),
-            % A = rpc:call(Node, dbg, p, [all, [c, timestamp]]),
-            % ?INFO("remote p: ~p\n", [A]),
-            ok
+            ?INFO("dbg:p(all, call) -> ~p", [MatchDesc]),
+            ?INFO("dbg nodes-------"),
+            dbg:ln(),
+            ?INFO("----------------"),
+            %% Re-enable tracing on remote node:
+            case goanna_db:lookup([trc_pattern, Node, Cookie]) of
+                [] ->
+                    State;
+                TracePatternRecs ->
+                    FRec = fun({Key, TrcPatternList}) -> TrcPatternList end,
+                    TracePatterns = lists:flatten(lists:map(FRec, TracePatternRecs)),
+                    F =
+                    fun
+                         % {{trace1@rpmbp,trace},[{trc_pattern,mnesia,undefined,undefined}]}
+                        (#trc_pattern{m=Module,f=undefined,a=undefined}) ->
+                            enable_tracing([Module]);
+                        (#trc_pattern{m=Module,f=Func,a=undefined}) ->
+                            enable_tracing([Module, Func]);
+                        (#trc_pattern{m=Module,f=Func,a=Arity}) ->
+                            enable_tracing([Module, Func, Arity])
+                    end,
+                    ok = lists:foreach(F, TracePatterns),
+                    State#?STATE{ tracing = true }
+            end
+    end.
+
+add_node(Node) ->
+    case dbg:n(Node) of
+        {ok, Node} ->
+            ?INFO("dbg:n -> {ok,~p}", [Node]),
+            ok;
+        {error,{already_started,_}} ->
+            ?INFO("dbg:n -> {error,{already_started,_}}");
+        {error,{nodedown,Node}} ->
+            ?INFO("dbg:n -> {error,{nodedown,~p}}", [Node])
     end.
 
 handle_call(_Request, _From, State) ->
@@ -118,30 +169,71 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info({nodedown, Node}, #?STATE{ node=Node } = State) ->
-    ?INFO("Node:~p down...~n~n", [Node]),
+    ?INFO("Node:~p down...", [Node]),
     {noreply, reconnect(State)};
-handle_info(reconnect, State) ->
-    ?INFO("reconnect..."),
-    {ok, NewState} = est_rem_conn(State),
+handle_info(reconnect, #?STATE{ node = _Node } = State) ->
+    ?INFO("reconnecting..."),
+
+
+    % goanna_tracer:tracer(),
+    % SysConfNodes = application:get_env(goanna, nodes, []),
+    % lists:foreach(fun
+    %     ({N, _Cookie}) when N == node() ->
+    %         ?INFO("NOT ! RE-ADDING ~p dbg:n/1", [N]);
+    %     ({OtherNode, _Cookie}) ->
+    %         ?INFO("RE-ADDING ~p dbg:n/1", [OtherNode]),
+    %         add_node(OtherNode)
+    % end, SysConfNodes),
+
+
+    {ok, NewState} = est_rem_conn(State, reconnect),
     {noreply, NewState};
 handle_info(stop_trace, State) ->
     ok = dbg:stop_clear(),
     % {noreply, State#?STATE{tracing = false,
     %                        trace_module = undefined}};
     {stop,stop_trace,State};
-handle_info({trace, Module}, #?STATE{ node = _Node } = State) ->
-    {ok, MatchDesc} = dbg:tpl(Module, cx),
-    % {ok, MatchDesc} = rpc:call(Node, dbg, tpl, [Module, cx]),
-    {noreply, State#?STATE{ tracing = true,
-                            trace_module = Module,
-                            matchdesc = MatchDesc
-                          }
-    };
+handle_info({trace, Module}, #?STATE{ node = Node, cookie = Cookie } = State) ->
+    true = goanna_db:store([trace_pattern, Node, Cookie],
+        #trc_pattern{m=Module}),
+    enable_tracing([Module]),
+    {noreply, State#?STATE{ tracing = true }};
+handle_info({trace, Module, Function}, #?STATE{ node = Node, cookie = Cookie } = State) ->
+    true = goanna_db:store([trace_pattern, Node, Cookie],
+        #trc_pattern{m=Module,f=Function}),
+    enable_tracing([Module]),
+    {noreply, State#?STATE{ tracing = true }};
+handle_info({trace, Module, Function, Arity}, #?STATE{ node = Node, cookie = Cookie } = State) ->
+    true = goanna_db:store([trace_pattern, Node, Cookie],
+        #trc_pattern{m=Module,f=Function,a=Arity}),
+    enable_tracing([Module]),
+    {noreply, State#?STATE{ tracing = true }};
+
 handle_info(Info, #?STATE{ node=Node, cookie=Cookie } = State) ->
-    ?INFO("Info ~p : ~p~n", [name(Node, Cookie), Info]),
+    ?INFO("Info ~p : ~p", [goanna_sup:id(Node, Cookie), Info]),
     {noreply, State}.
 
-terminate(_Reason, _State) ->
+enable_tracing(T=[Module]) ->
+    ?INFO("enable_tracing:~p~n", [T]),
+
+    % {ok, MatchDesc} = rpc:call(Node, dbg, tpl, [Module, cx]),
+    {ok, MatchDesc} = dbg:tpl(Module, cx),
+    ?INFO("tpl:~p", [MatchDesc]);
+enable_tracing(T=[Module, Function]) ->
+    ?INFO("enable_tracing:~p~n", [T]),
+
+    % {ok, MatchDesc} = rpc:call(Node, dbg, tpl, [Module, Function, cx]),
+    {ok, MatchDesc} = dbg:tpl(Module, Function, cx),
+    ?INFO("tpl:~p", [MatchDesc]);
+enable_tracing(T=[Module, Function, Arity]) ->
+    ?INFO("enable_tracing:~p~n", [T]),
+
+    % {ok, MatchDesc} = rpc:call(Node, dbg, tpl, [Module, Function, Arity, cx]),
+    {ok, MatchDesc} = dbg:tpl(Module, Function, Arity, cx),
+    ?INFO("tpl:~p", [MatchDesc]).
+
+terminate(_Reason, #?STATE{node = Node, cookie = Cookie} = _State) ->
+    true = goanna_db:terminate_node([Node, Cookie]),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
