@@ -23,15 +23,7 @@
 %% ===================================================================
 
 start_link() ->
-    R = supervisor:start_link({local, ?MODULE}, ?MODULE, []),
-    %%
-    % try
-    %     dbg:cn(node())
-    % catch
-    %     _C:_E ->
-    %         ok
-    % end,
-    R.
+    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 %% ===================================================================
 %% Supervisor callbacks
@@ -49,9 +41,7 @@ init([]) ->
     MaxRestarts = 10000,
     MaxSecondsBetweenRestarts = 9600,
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
-    {ok, {SupFlags, [?CHILD(goanna_tracer, goanna_tracer, worker, [])
-                     % ?CHILD(goanna_monitor, goanna_monitor, worker, [])
-                    ] ++ Children}}.
+    {ok, {SupFlags, Children}}.
 
 id(Node, Cookie) ->
     list_to_atom(atom_to_list(Node)++"_"++atom_to_list(Cookie)).
