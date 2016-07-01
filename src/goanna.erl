@@ -1,6 +1,7 @@
--module(goanna).
+-module (goanna).
 
 -behaviour(gen_server).
+
 -export([
     start/0,
     trace/1, trace/2, trace/3,
@@ -8,7 +9,7 @@
 ]).
 
 -export([
-    start_link/2,
+    start_link/1,
     init/1,
     handle_call/3,
     handle_cast/2,
@@ -16,17 +17,18 @@
     terminate/2,
     code_change/3
 ]).
+
+-include_lib("goanna.hrl").
+
 -define(STATE, goanna_state).
+
 -record(?STATE, {connected=false,
                  connect_attempt_ref=undefined,
                  node,
                  cookie,
-                 matchdesc,
-                 tracing=false,
-                 trace_module
+                 type,
+                 tracing=false %% Build a check, when enabling/disabling
                 }).
--include_lib("goanna.hrl").
-
 %%------------------------------------------------------------------------
 %% API
 start() ->
@@ -65,18 +67,20 @@ stop_trace(Module, Function, Arity) ->
 
 cluster_foreach(Msg) ->
     lists:foreach(
-        fun({Node, Cookie}) ->
+        fun({Node, Cookie, _Type}) ->
             whereis(goanna_sup:id(Node, Cookie)) ! Msg
         end, ets:tab2list(nodelist)
     ).
 %%------------------------------------------------------------------------
-start_link(Node, Cookie) ->
+start_link(_NodeObj={Node,Cookie,Type}) ->
     Name = goanna_sup:id(Node, Cookie),
     gen_server:start_link({local, Name},
-                          ?MODULE, {Node, Cookie}, []).
+                          ?MODULE, {Node,Cookie,Type}, []).
 
-init({Node, Cookie}) ->
-    est_rem_conn(#?STATE{node=Node, cookie=Cookie}).
+init({Node,Cookie,Type}) ->
+    est_rem_conn(#?STATE{node=Node,
+                         cookie=Cookie,
+                         type=Type}).
 
 handle_call(_Request, _From, State) ->
     {reply, {error, unknown_call}, State}.
@@ -181,28 +185,36 @@ do_monitor_node(Node, ConnectAttemptTref) ->
     ?INFO("[~p] ----------------- NODE ~p STARTUP COMPLETED -----------------\n\n",
         [?MODULE, Node]).
 
-trace_steps(#?STATE{node = Node, cookie = Cookie} = State) ->
-    % rpc:call(Node, dbg, start, []),
-    _RemoteDbgPid =
-        try
-            {ok, Pid} = rpc:call(Node, dbg, start, [])
-        catch
-            error:{badmatch,{badrpc,{'EXIT',
-                    {{case_clause,DbgPid},[{dbg,start,1,_},_]}}}} ->
-                DbgPid;
-            C:E ->
-                ?WARNING("[~p] dbg start failed ~p", [?MODULE, {C,E}])
-        end,
-
-    FunStr = lists:flatten(io_lib:format(
-        "fun(Trace, _) ->"
-        " true=rpc:call(~p, goanna_db, store, [[trace,~p,~p],Trace]) "
-        "end.", [node(), Node, Cookie])),
-    {ok, Tokens, _} = erl_scan:string(FunStr),
-    {ok,[Form]} = erl_parse:parse_exprs(Tokens),
-    Bindings = erl_eval:add_binding('B', 2, erl_eval:new_bindings()),
-    {value, RemoteFun, _} = erl_eval:expr(Form, Bindings),
-
+trace_steps(#?STATE{node = Node,
+                    cookie = Cookie,
+                    type = tcpip_port} = State) ->
+    RelayPort = erlang:phash2(Node, 9000)+1023, % +1023, to make sure it's above the safe range
+    [_Name, RelayHost] = string:tokens(atom_to_list(Node), "@"),
+    {ok, RemoteDbgPid} = dbg_start(Node),
+    PortGenerator = rpc:call(Node, dbg, trace_port, [ip, RelayPort]),
+    case rpc:call(Node, dbg, tracer, [port, PortGenerator]) of
+        {error,already_started} ->
+            ok;
+        {ok, RemoteDbgPid} ->
+            ok
+    end,
+    {ok,MatchDesc} = rpc:call(Node, dbg, p, [all, call]),
+    {ok, Fun} = handler_fun(Node, Cookie, tcpip_port),
+    CLientPid = dbg:trace_client(ip, {RelayHost, RelayPort}, {Fun, ok}),
+    link(CLientPid),
+    ?INFO("[~p] Node:~p MatchDesc:~p", [?MODULE, Node, MatchDesc]),
+    reapply_traces(State);
+trace_steps(#?STATE{node = _Node,
+                    cookie = _Cookie,
+                    type = file} = State) ->
+    ?WARNING("dbg trace_port file - fearure not implemented..."),
+    erlang:halt(1),
+    reapply_traces(State);
+trace_steps(#?STATE{node = Node,
+                    cookie = Cookie,
+                    type = erlang_distribution} = State) ->
+    {ok, _RemoteDbgPid} = dbg_start(Node),
+    {ok, RemoteFun} = handler_fun(Node, Cookie, erlang_distribution),
     case rpc:call(Node, dbg, tracer,
                  [Node, process, {RemoteFun, ok}])
     of
@@ -211,10 +223,39 @@ trace_steps(#?STATE{node = Node, cookie = Cookie} = State) ->
         {ok, Node} ->
             ok
     end,
-
     {ok,MatchDesc} = rpc:call(Node, dbg, p, [all, call]),
     ?INFO("[~p] Node:~p MatchDesc:~p", [?MODULE, Node, MatchDesc]),
+    reapply_traces(State).
 
+dbg_start(Node) ->
+    try
+        {ok, Pid} = rpc:call(Node, dbg, start, [])
+    catch
+        error:{badmatch,{badrpc,{'EXIT',
+                {{case_clause,DbgPid},[{dbg,start,1,_},_]}}}} ->
+            {ok, DbgPid};
+        C:E ->
+            ?WARNING("[~p] dbg start failed ~p", [?MODULE, {C,E}])
+    end.
+
+handler_fun(Node, Cookie, tcpip_port) ->
+    {ok, fun(Trace, _) ->
+        goanna_db:store([trace, Node, Cookie],Trace)
+    end};
+handler_fun(_Node, _Cookie, file) ->
+    {ok, undefined};
+handler_fun(Node, Cookie, erlang_distribution) ->
+    FunStr = lists:flatten(io_lib:format(
+        "fun(Trace, _) ->"
+        " true=rpc:call(~p, goanna_db, store, [[trace,~p,~p],Trace]) "
+        "end.", [node(), Node, Cookie])),
+    {ok, Tokens, _} = erl_scan:string(FunStr),
+    {ok,[Form]} = erl_parse:parse_exprs(Tokens),
+    Bindings = erl_eval:add_binding('B', 2, erl_eval:new_bindings()),
+    {value, Fun, _} = erl_eval:expr(Form, Bindings),
+    {ok, Fun}.
+
+reapply_traces(#?STATE{node = Node, cookie = Cookie} = State) ->
     case goanna_db:lookup([trc_pattern, Node, Cookie]) of
         [] ->
             State;

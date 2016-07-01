@@ -13,12 +13,15 @@
 
 init() ->
     nodelist = ets:new(nodelist, [public, set, named_table]),
-    tracelist = ets:new(tracelist, [public, set, named_table]).
+    tracelist = ets:new(tracelist, [public, set, named_table]),
+    relay_tcpip_allocated_ports = ets:new(relay_tcpip_allocated_ports, [public, set, named_table]).
 
-init_node([Node, Cookie]) ->
-    true = ets:insert(nodelist, {Node,Cookie}),
+init_node([Node, Cookie, Type]) ->
+    NodeObj = {Node, Cookie, Type},
+    true = ets:insert(nodelist, NodeObj),
     Name = goanna_sup:id(Node, Cookie),
-    ets:new(Name, [public, ordered_set, named_table]).
+    Name = ets:new(Name, [public, ordered_set, named_table]),
+    {ok, NodeObj}.
 
 store([trace_pattern, Node, Cookie], TracePattern) ->
     case ets:lookup(tracelist, {Node, Cookie}) of
@@ -36,6 +39,8 @@ store([trace, Node, Cookie], Trace) ->
     Name = goanna_sup:id(Node, Cookie),
     ets:insert(Name, {now(),Trace}).
 
+lookup([nodelist, Node]) ->
+    ets:lookup(nodelist, Node);
 lookup([trc_pattern, Node, Cookie]) ->
     ets:lookup(tracelist, {Node, Cookie}).
 

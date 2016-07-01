@@ -32,11 +32,10 @@ start_link() ->
 init([]) ->
     goanna_db:init(),
     SysConfNodes = application:get_env(goanna, nodes, []),
-    Children = lists:map(fun({Node, Cookie}) ->
-            goanna_db:init_node([Node, Cookie]),
-            ?CHILD(id(Node,Cookie), goanna, worker, [Node, Cookie])
+    Children = lists:map(fun([{node,Node},{cookie,Cookie},{type,Type}]) ->
+            {ok, NodeObj} = goanna_db:init_node([Node, Cookie, Type]),
+            ?CHILD(id(Node,Cookie), goanna, worker, [NodeObj])
         end, SysConfNodes),
-
     RestartStrategy = one_for_one,
     MaxRestarts = 10000,
     MaxSecondsBetweenRestarts = 9600,
