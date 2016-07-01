@@ -1,6 +1,5 @@
 
-h1. [Goanna](https://en.wikipedia.org/wiki/Goanna)
-Cluster tracing library
+# [Goanna](https://en.wikipedia.org/wiki/Goanna) Cluster tracing library
 
 
 ```
@@ -20,11 +19,18 @@ Cluster tracing library
                                                '\,        ~-_'''"
 ```
 
-h2.
-This WIP is for applying traces to a cluster of nodes. It currently stores the traces in a ETS table.
-It does deal with remote node outages, and re-applies the traces.
+###### This WIP is for applying traces to a cluster of nodes. It currently stores the traces in a ETS table. It does deal with remote node outages, and re-applies the traces.
+###### the curent implementation handles noraml erlang RPC distribution, and trace_port.
 
-h2. setup
+#Roadmap
+1. escriptify
+2. custom trace_port client
+3. custom front end application to read ets tables, and format entries
+4. tracing timers
+5. message queue depth, to prevent tracing from spiraling out of control
+
+
+#setup
 edit the sys.config, here's example of the application config:
 ```
 {goanna,[
@@ -36,6 +42,6 @@ edit the sys.config, here's example of the application config:
  ]},
 ```
 
-h2. usage
+## usage
 To run this library stand-alone, just edit the sys.config, and ./start-dev.sh.
 My later intetion is to use this library application, as part of another bigger piece of work.
