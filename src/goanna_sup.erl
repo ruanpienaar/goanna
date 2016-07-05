@@ -23,7 +23,10 @@
 %% ===================================================================
 
 start_link() ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+    R=supervisor:start_link({local, ?MODULE}, ?MODULE, []),
+    goanna:poll_results(),
+    R.
+    
 
 %% ===================================================================
 %% Supervisor callbacks
