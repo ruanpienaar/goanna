@@ -3,17 +3,6 @@
 -behaviour(gen_server).
 
 -export([
-    start/0,
-    trace/1, trace/2, trace/3,
-    stop_trace/0, stop_trace/1, stop_trace/2, stop_trace/3
-]).
-
-%% Debug:
--export([
-	poll_results/0
-]).
-
--export([
     start_link/1,
     init/1,
     handle_call/3,
@@ -26,68 +15,21 @@
 -include_lib("goanna.hrl").
 
 -define(STATE, goanna_state).
-
 -record(?STATE, {connected=false,
                  connect_attempt_ref=undefined,
                  node,
                  cookie,
                  type,
-                 tracing=false, %% Build a check, when enabling/disabling
                  trace_forward_callback %% Any callback module...
                 }).
 %%------------------------------------------------------------------------
-%% API
-start() ->
-    ok = application:start(asn1),
-    ok = application:start(crypto),
-    ok = application:start(public_key),
-    ok = application:start(ssl),
-    ok = application:start(compiler),
-    ok = application:start(inets),
-    ok = application:start(syntax_tools),
-    ok = application:start(sasl),
-    ok = application:start(goldrush),
-    ok = application:start(lager),
-    ok = application:start(goanna).
-
-trace(Module) ->
-    cluster_foreach({trace, Module}).
-
-trace(Module, Function) ->
-    cluster_foreach({trace, Module, Function}).
-
-trace(Module, Function, Arity) ->
-    cluster_foreach({trace, Module, Function, Arity}).
-
-stop_trace() ->
-    cluster_foreach(stop_trace).
-
-stop_trace(Module) ->
-    cluster_foreach({stop_trace, Module}).
-
-stop_trace(Module, Function) ->
-    cluster_foreach({stop_trace, Module, Function}).
-
-stop_trace(Module, Function, Arity) ->
-    cluster_foreach({stop_trace, Module, Function, Arity}).
-
-poll_results() ->
-	cluster_foreach({poll_results}).
-
-cluster_foreach(Msg) ->
-    lists:foreach(
-        fun({Node, Cookie, _Type}) ->
-            whereis(goanna_sup:id(Node, Cookie)) ! Msg
-        end, ets:tab2list(nodelist)
-    ).
-    
-%%------------------------------------------------------------------------
-start_link(_NodeObj={Node,Cookie,Type}) ->
+start_link(_NodeObj = {Node, Cookie, Type}) ->
     Name = goanna_sup:id(Node, Cookie),
     gen_server:start_link({local, Name},
                           ?MODULE, {Node,Cookie,Type}, []).
 
-init({Node,Cookie,Type}) ->
+init({Node, Cookie, Type}) ->
+
 	Mod = application:get_env(goanna, trace_forward_callback, goanna_shell_printer),
 	c:l(goanna_shell_printer),
 	case erlang:function_exported(Mod, forward, 2) of
@@ -100,7 +42,7 @@ init({Node,Cookie,Type}) ->
         false ->
             erlang:halt(1)
     end.
-
+%%------------------------------------------------------------------------
 handle_call(_Request, _From, State) ->
     {reply, {error, unknown_call}, State}.
 
@@ -122,58 +64,31 @@ handle_info(stop_trace, #?STATE{node=Node, cookie=Cookie} = State) ->
     ok = rpc:call(Node, dbg, stop_clear, []),
     true = goanna_db:truncate_tracelist([Node, Cookie]),
     disable_tracing(Node, []),
-    {noreply, State#?STATE{ tracing = false }};
-handle_info({stop_trace, Module}, #?STATE{ node = Node } = State) ->
-    disable_tracing(Node, [Module]),
-    {noreply, State#?STATE{ tracing = false }};
-handle_info({stop_trace, Module, Function}, #?STATE{ node = Node } = State) ->
-    disable_tracing(Node, [Module, Function]),
-    {noreply, State#?STATE{ tracing = false }};
-handle_info({stop_trace, Module, Function, Arity}, #?STATE{ node = Node } = State) ->
-    disable_tracing(Node, [Module, Function, Arity]),
-    {noreply, State#?STATE{ tracing = false }};
+    {noreply, State};
+handle_info({stop_trace, Opts}, #?STATE{ node = Node, cookie = Cookie } = State) ->
+    TrcPattern = lists:keyfind(trc, 1, Opts),
+    goanna_db:delete_tracelist_pattern([Node, Cookie], TrcPattern),
+    disable_tracing(Node, TrcPattern),
+    {noreply, State};
 %%------------------------------------------------------------------------
 %%---Tracing--------------------------------------------------------------
-handle_info({trace, Module}, #?STATE{ node = Node, cookie = Cookie } = State) ->
-    case
-        goanna_db:store([trace_pattern, Node, Cookie],
-            #trc_pattern{m=Module})
-    of
-        true ->
-            enable_tracing(Node, [Module]);
-        {error, already_traced} ->
-            ok
-    end,
-    {noreply, State#?STATE{ tracing = true }};
-handle_info({trace, Module, Function}, #?STATE{ node = Node, cookie = Cookie } = State) ->
-    case
-        goanna_db:store([trace_pattern, Node, Cookie],
-            #trc_pattern{m=Module,f=Function})
-    of
-        true ->
-            enable_tracing(Node, [Module, Function]);
-        {error, already_traced} ->
-            ok
-    end,
-    {noreply, State#?STATE{ tracing = true }};
-handle_info({trace, Module, Function, Arity}, #?STATE{ node = Node, cookie = Cookie } = State) ->
-    case
-        goanna_db:store([trace_pattern, Node, Cookie],
-            #trc_pattern{m=Module,f=Function,a=Arity})
-    of
-        true ->
-            enable_tracing(Node, [Module, Function, Arity]);
-        {error, already_traced} ->
-            ok
-    end,
-    {noreply, State#?STATE{ tracing = true }};
+handle_info({trace, Opts}, #?STATE{ node = Node, cookie = Cookie } = State) ->
+    TrcPattern = lists:keyfind(trc, 1, Opts),
+    Reply =
+        case goanna_db:store([trace_pattern, Node, Cookie], TrcPattern) of
+            true ->
+                enable_tracing(Node, TrcPattern);
+            {error, already_traced} ->
+                {error, already_traced}
+        end,
+    {noreply, State};
 %%------------------------------------------------------------------------
 %% Poll results, and forward upwards
 handle_info({poll_results}, #?STATE{ node = Node, 
 									 cookie = Cookie,
 									 trace_forward_callback = Mod } = State) ->
 	ok = poll_table(Mod, Node, Cookie),
-	timer:send_after(1000, {poll_results}),
+	timer:send_after(application:get_env(goanna, poll_interval, 1000), {poll_results}),
 	{noreply, State};
 %%------------------------------------------------------------------------
 %%---Shoudn't happen, but hey... let's see ...----------------------------
@@ -195,6 +110,7 @@ est_rem_conn(#?STATE{ node=Node, cookie=Cookie } = State) ->
         true ->
             State2 = trace_steps(State),
             do_monitor_node(Node, State2#?STATE.connect_attempt_ref),
+            timer:send_after(1, {poll_results}),
             {ok, State2#?STATE{connected=true, connect_attempt_ref = undefined }};
         false ->
             {ok, reconnect(State)}
@@ -285,60 +201,64 @@ handler_fun(Node, Cookie, erlang_distribution) ->
 reapply_traces(#?STATE{node = Node, cookie = Cookie} = State) ->
     case goanna_db:lookup([trc_pattern, Node, Cookie]) of
         [] ->
-            State;
+            ok;
         TracePatternRecs ->
-            FRec = fun({_Key, TrcPatternList}) -> TrcPatternList end,
-            TracePatterns = lists:flatten(lists:map(FRec, TracePatternRecs)),
-            F =
-            fun (#trc_pattern{m=Module,f=undefined,a=undefined}) ->
-                    enable_tracing(Node, [Module]);
-                (#trc_pattern{m=Module,f=Func,a=undefined}) ->
-                    enable_tracing(Node, [Module, Func]);
-                (#trc_pattern{m=Module,f=Func,a=Arity}) ->
-                    enable_tracing(Node, [Module, Func, Arity])
+            FRec = fun({_Key, TrcPatternList}) ->
+                ok = lists:foreach(fun(TrcPattern) ->
+                    enable_tracing(Node, TrcPattern)
+                end, TrcPatternList)
             end,
-            ok = lists:foreach(F, TracePatterns),
-            State#?STATE{ tracing = true }
-    end.
+            lists:map(FRec, lists:flatten(TracePatternRecs))
+    end,
+    State.
 
 reconnect(State) ->
     {ok, TRef} = timer:send_after(250, reconnect),
     State#?STATE{connected=false, connect_attempt_ref=TRef}.
 
-enable_tracing(Node, T=[Module]) ->
-    ?INFO("[~p] enable_tracing:~p~n", [?MODULE, T]),
+enable_tracing(_Node, false) ->
+    {error, nothing_to_trace};
+enable_tracing(Node, {trc, T=#trc_pattern{m=Module,f=undefined,a=undefined}}) ->
+    ?INFO("[~p] [~p] enable_tracing:~p~n", [?MODULE, Node, T]),
     {ok, MatchDesc} = rpc:call(Node, dbg, tpl, [Module, cx]),
-    ?INFO("dbg:tpl MatchDesc ~p", [MatchDesc]);
+    ?INFO("[~p] [~p] dbg:tpl MatchDesc ~p", 
+        [?MODULE, Node, MatchDesc]);
 
-enable_tracing(Node, T=[Module, Function]) ->
-    ?INFO("[~p] enable_tracing:~p~n", [?MODULE, T]),
+enable_tracing(Node, {trc, T=#trc_pattern{m=Module,f=Function,a=undefined}}) ->
+    ?INFO("[~p] [~p] enable_tracing:~p~n", [?MODULE, Node, T]),
     {ok, MatchDesc} = rpc:call(Node, dbg, tpl, [Module, Function, cx]),
-    ?INFO("dbg:tpl MatchDesc ~p", [MatchDesc]);
+    ?INFO("[~p] [~p] dbg:tpl MatchDesc ~p", 
+        [?MODULE, Node, MatchDesc]);
 
-enable_tracing(Node, T=[Module, Function, Arity]) ->
-    ?INFO("[~p] enable_tracing:~p~n", [?MODULE, T]),
+enable_tracing(Node, {trc, T=#trc_pattern{m=Module,f=Function,a=Arity}}) ->
+    ?INFO("[~p] [~p] enable_tracing:~p~n", [?MODULE, Node, T]),
     {ok, MatchDesc} = rpc:call(Node, dbg, tpl,[Module, Function, Arity]),
-    ?INFO("dbg:tpl MatchDesc ~p", [MatchDesc]).
+    ?INFO("[~p] [~p] dbg:tpl MatchDesc ~p", 
+        [?MODULE, Node, MatchDesc]).
 
 disable_tracing(Node, []) ->
-    ?INFO("[~p] Disable all tracing", [?MODULE]),
+    ?INFO("[~p] [~p] Disable all tracing", [?MODULE, Node]),
     {ok,MatchDesc} = rpc:call(Node, dbg, ctpl, []),
-    ?INFO("dbg:ctpl MatchDesc ~p", [MatchDesc]);
+    ?INFO("[~p] [~p] dbg:ctpl MatchDesc ~p", 
+        [?MODULE, Node, MatchDesc]);
 
-disable_tracing(Node, T=[Module]) ->
-    ?INFO("[~p] Disable ~p tracing", [?MODULE, T]),
+disable_tracing(Node, {trc, T=#trc_pattern{m=Module,f=undefined,a=undefined}}) ->
+    ?INFO("[~p] [~p] Disable ~p tracing", [?MODULE, Node, T]),
     {ok,MatchDesc} = rpc:call(Node, dbg, ctpl, [Module]),
-    ?INFO("dbg:ctpl MatchDesc ~p", [MatchDesc]);
+    ?INFO("[~p] [~p] dbg:ctpl MatchDesc ~p", 
+        [?MODULE, Node, MatchDesc]);
 
-disable_tracing(Node, T=[Module, Function]) ->
-    ?INFO("[~p] Disable ~p tracing", [?MODULE, T]),
+disable_tracing(Node, {trc, T=#trc_pattern{m=Module,f=Function,a=undefined}}) ->
+    ?INFO("[~p] [~p] Disable ~p tracing", [?MODULE, Node, T]),
     {ok,MatchDesc} = rpc:call(Node, dbg, ctpl, [Module, Function]),
-    ?INFO("dbg:ctpl MatchDesc ~p", [MatchDesc]);
+    ?INFO("[~p] [~p] dbg:ctpl MatchDesc ~p", 
+        [?MODULE, Node, MatchDesc]);
 
-disable_tracing(Node, T=[Module, Function, Arity]) ->
-    ?INFO("[~p] Disable ~p tracing", [?MODULE, T]),
+disable_tracing(Node, {trc, T=#trc_pattern{m=Module,f=Function,a=Arity}}) ->
+    ?INFO("[~p] [~p] Disable ~p tracing", [?MODULE, Node, T]),
     {ok,MatchDesc} = rpc:call(Node, dbg, ctpl, [Module, Function, Arity]),
-    ?INFO("dbg:ctpl MatchDesc ~p", [MatchDesc]).
+    ?INFO("[~p] [~p] dbg:ctpl MatchDesc ~p", 
+        [?MODULE, Node, MatchDesc]).
     
 poll_table(Mod, Node, Cookie) ->
 	Tbl=goanna_sup:id(Node, Cookie),
