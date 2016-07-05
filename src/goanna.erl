@@ -8,6 +8,11 @@
     stop_trace/0, stop_trace/1, stop_trace/2, stop_trace/3
 ]).
 
+%% Debug:
+-export([
+	poll_results/0
+]).
+
 -export([
     start_link/1,
     init/1,
@@ -27,7 +32,8 @@
                  node,
                  cookie,
                  type,
-                 tracing=false %% Build a check, when enabling/disabling
+                 tracing=false, %% Build a check, when enabling/disabling
+                 trace_forward_callback %% Any callback module...
                 }).
 %%------------------------------------------------------------------------
 %% API
@@ -65,12 +71,16 @@ stop_trace(Module, Function) ->
 stop_trace(Module, Function, Arity) ->
     cluster_foreach({stop_trace, Module, Function, Arity}).
 
+poll_results() ->
+	cluster_foreach({poll_results}).
+
 cluster_foreach(Msg) ->
     lists:foreach(
         fun({Node, Cookie, _Type}) ->
             whereis(goanna_sup:id(Node, Cookie)) ! Msg
         end, ets:tab2list(nodelist)
     ).
+    
 %%------------------------------------------------------------------------
 start_link(_NodeObj={Node,Cookie,Type}) ->
     Name = goanna_sup:id(Node, Cookie),
@@ -78,9 +88,18 @@ start_link(_NodeObj={Node,Cookie,Type}) ->
                           ?MODULE, {Node,Cookie,Type}, []).
 
 init({Node,Cookie,Type}) ->
-    est_rem_conn(#?STATE{node=Node,
-                         cookie=Cookie,
-                         type=Type}).
+	Mod = application:get_env(goanna, trace_forward_callback, goanna_shell_printer),
+	c:l(goanna_shell_printer),
+	case erlang:function_exported(Mod, forward, 2) of
+		true ->
+            est_rem_conn(#?STATE{node=Node,
+                                 cookie=Cookie,
+                                 type=Type,
+                                 trace_forward_callback=Mod
+            });
+        false ->
+            erlang:halt(1)
+    end.
 
 handle_call(_Request, _From, State) ->
     {reply, {error, unknown_call}, State}.
@@ -148,6 +167,14 @@ handle_info({trace, Module, Function, Arity}, #?STATE{ node = Node, cookie = Coo
             ok
     end,
     {noreply, State#?STATE{ tracing = true }};
+%%------------------------------------------------------------------------
+%% Poll results, and forward upwards
+handle_info({poll_results}, #?STATE{ node = Node, 
+									 cookie = Cookie,
+									 trace_forward_callback = Mod } = State) ->
+	ok = poll_table(Mod, Node, Cookie),
+	timer:send_after(1000, {poll_results}),
+	{noreply, State};
 %%------------------------------------------------------------------------
 %%---Shoudn't happen, but hey... let's see ...----------------------------
 handle_info(Info, #?STATE{ node=Node, cookie=Cookie } = State) ->
@@ -312,3 +339,17 @@ disable_tracing(Node, T=[Module, Function, Arity]) ->
     ?INFO("[~p] Disable ~p tracing", [?MODULE, T]),
     {ok,MatchDesc} = rpc:call(Node, dbg, ctpl, [Module, Function, Arity]),
     ?INFO("dbg:ctpl MatchDesc ~p", [MatchDesc]).
+    
+poll_table(Mod, Node, Cookie) ->
+	Tbl=goanna_sup:id(Node, Cookie),
+	trace_results_loop(Mod, Tbl).
+	
+trace_results_loop(Mod, Tbl) ->
+    trace_results_loop(Mod, Tbl, ets:first(Tbl)).
+
+trace_results_loop(_Mod, _Tbl, '$end_of_table') ->
+    ok;
+trace_results_loop(Mod, Tbl, Key) ->
+	ok = Mod:forward(Tbl, ets:lookup(Tbl, Key)),
+    true = ets:delete(Tbl, Key),
+    trace_results_loop(Mod, Tbl, ets:next(Tbl, Key)).
