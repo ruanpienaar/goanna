@@ -64,7 +64,7 @@ cluster_foreach(Msg) ->
     ).
     
 pidbang_node(Node, Cookie, Msg) ->
-    whereis(goanna_sup:id(Node, Cookie)) ! Msg
+    whereis(goanna_sup:id(Node, Cookie)) ! Msg.
 
 %%------------------------------------------------------------------------
 
