@@ -1,6 +1,11 @@
 -module (goanna_api).
 -export([
     start/0,
+    add_node/3,
+    remove_node/1
+]).
+    
+-export([
     trace/1, trace/2, trace/3,
     stop_trace/0, stop_trace/1, stop_trace/2, stop_trace/3
 ]).
@@ -20,6 +25,12 @@ start() ->
         [asn1, crypto, public_key, ssl, compiler, inets, syntax_tools, sasl, 
          goldrush, lager, goanna]
     ].
+    
+add_node(Node, Cookie, Type) ->
+	goanna_sup:start_child(Node, Cookie, Type).
+	
+remove_node(Node) ->
+	goanna_sup:delete_child(Node).
 
 trace(Module) ->
     Opts = trace_options_default() 

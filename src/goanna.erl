@@ -98,7 +98,7 @@ handle_info(Info, #?STATE{ node=Node, cookie=Cookie } = State) ->
 
 terminate(Reason, #?STATE{ node=Node, cookie=Cookie } = _State) ->
     ?INFO("[~p] terminate ~p ", [?MODULE, Reason]),
-    true = goanna_db:terminate_node([Node, Cookie]),
+    true = goanna_db:delete_node(Node),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
