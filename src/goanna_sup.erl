@@ -3,7 +3,10 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0]).
+-export([start_link/0,
+		 start_child/3,
+		 delete_child/1
+]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -24,7 +27,16 @@
 
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
-    
+
+start_child(Node, Cookie, Type) ->
+	{ok, NodeObj} = goanna_db:init_node([Node, Cookie, Type]),
+	supervisor:start_child(?MODULE, ?CHILD(id(Node,Cookie), goanna, worker, [NodeObj])).
+
+delete_child(Node) ->
+	[{Node, Cookie,_}] = goanna_db:lookup([nodelist, Node]),
+	ID=id(Node,Cookie),
+	ok = supervisor:terminate_child(?MODULE, ID),
+	supervisor:delete_child(?MODULE, ID).
 
 %% ===================================================================
 %% Supervisor callbacks

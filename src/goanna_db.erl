@@ -4,7 +4,7 @@
           init_node/1,
           store/2,
           lookup/1,
-          terminate_node/1,
+          delete_node/1,
           delete_tracelist_pattern/2,
           truncate_tracelist/1
 ]).
@@ -44,8 +44,8 @@ lookup([nodelist, Node]) ->
 lookup([trc_pattern, Node, Cookie]) ->
     ets:lookup(tracelist, {Node, Cookie}).
 
-terminate_node([Node, Cookie]) ->
-    ets:delete(nodelist, {Node,Cookie}).
+delete_node(Node) ->
+    ets:delete(nodelist, Node).
 
 delete_tracelist_pattern([Node, Cookie], TracePattern) ->
     case lookup([trc_pattern, Node, Cookie]) of
@@ -55,6 +55,6 @@ delete_tracelist_pattern([Node, Cookie], TracePattern) ->
             Updated=lists:delete(TracePattern, TracePatterns),
             ets:insert(tracelist, {{Node, Cookie},Updated})
     end.
-
+   
 truncate_tracelist([Node, Cookie]) ->
     ets:delete(tracelist, {Node, Cookie}).
