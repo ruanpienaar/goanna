@@ -32,14 +32,24 @@
 
 #setup
 edit the sys.config, here's example of the application config:
-```
-{goanna,[
+```Erlang
+ {goanna,[
     {nodes, [
-        % {SomeNode, SomeCookie}
-        {'goanna1@hostname', goanna},
-        {'goanna1@hostname', goanna}
+        % [{node,   NodeName},
+        %  {cookie, Cookie},
+        %  {type,   Type}]   %% tcpipo_port | file | erlang_distribution
+
+        [{node,'node1@host'},
+         {cookie, cookie},
+         {type, tcpip_port}
+        ],
+
+        [{node,'node2@host'},
+         {cookie, cookie},
+         {type, tcpip_port}
+        ]
     ]}
- ]},
+ ]}
 ```
 
 ## usage
