@@ -4,7 +4,8 @@
 
 
 forward(Tbl, [{Now, TraceItem}]) ->
-	?INFO("[~p] [~p] ~p", [get_time(Now), Tbl, TraceItem]).
+    %% Warning, to use the nice Yellow color.
+	?WARNING("[~p] [~p] ~p", [get_time(Now), Tbl, TraceItem]).
 
 get_time({_,_,Micro} = Timestamp) ->
     {{Year, Month, Day}, {Hour, Minute, Second}} = calendar:now_to_datetime(Timestamp),

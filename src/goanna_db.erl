@@ -37,7 +37,7 @@ store([trace_pattern, Node, Cookie], TracePattern) ->
     end;
 store([trace, Node, Cookie], Trace) ->
     Name = goanna_sup:id(Node, Cookie),
-    ets:insert(Name, {now(),Trace}).
+    ets:insert(Name, {erlang:timestamp(),Trace}).
 
 lookup([nodelist, Node]) ->
     ets:lookup(nodelist, Node);
@@ -55,6 +55,6 @@ delete_tracelist_pattern([Node, Cookie], TracePattern) ->
             Updated=lists:delete(TracePattern, TracePatterns),
             ets:insert(tracelist, {{Node, Cookie},Updated})
     end.
-   
+
 truncate_tracelist([Node, Cookie]) ->
     ets:delete(tracelist, {Node, Cookie}).
