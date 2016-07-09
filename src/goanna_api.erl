@@ -48,24 +48,21 @@ trace(Module, Function, Arity) ->
     cluster_foreach({trace, Opts}).
 
 trace_options_default() ->
-    [{time, 60000},
-     {messages, 50}
+    [{time, 20000},
+     {messages, 10}
     ].
 
 stop_trace() ->
     cluster_foreach(stop_trace).
 
 stop_trace(Module) ->
-    Opts = [{trc, #trc_pattern{m=Module}}],
-    cluster_foreach({stop_trace, Opts}).
+    cluster_foreach({stop_trace, #trc_pattern{m=Module}}).
 
 stop_trace(Module, Function) ->
-    Opts = [{trc, #trc_pattern{m=Module,f=Function}}],
-    cluster_foreach({stop_trace, Opts}).
+    cluster_foreach({stop_trace, #trc_pattern{m=Module,f=Function}}).
 
 stop_trace(Module, Function, Arity) ->
-    Opts = [{trc, #trc_pattern{m=Module,f=Function,a=Arity}}],
-    cluster_foreach({stop_trace, Opts}).
+    cluster_foreach({stop_trace, #trc_pattern{m=Module,f=Function,a=Arity}}).
 
 cluster_foreach(Msg) ->
     lists:foreach(
