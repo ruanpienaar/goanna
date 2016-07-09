@@ -23,7 +23,9 @@
                  type,
                  trace_forward_callback,
                  trace_msg_count=0,
-                 trace_msg_total=100 %% Any callback module...
+                 trace_msg_total=100, %% Any callback module...
+                 trace_pattern_timer_ref=[],
+                 remote_trace_enabled=false
                 }).
 %%------------------------------------------------------------------------
 start_link(_NodeObj = {Node, Cookie, Type}) ->
@@ -64,23 +66,26 @@ handle_info(reconnect, #?STATE{ node = Node } = State) ->
 %%---Disable Tracing------------------------------------------------------
 handle_info(stop_trace, #?STATE{node=Node, cookie=Cookie} = State) ->
     disable_all_tracing(Node, Cookie),
-    {noreply, State#?STATE{trace_msg_count = 0}};
-handle_info({stop_trace, Opts}, #?STATE{ node = Node, cookie = Cookie } = State) ->
-    TrcPattern = lists:keyfind(trc, 1, Opts),
+    {noreply, State#?STATE{trace_msg_count = 0,
+                           trace_pattern_timer_ref = [],
+                           remote_trace_enabled = false}};
+handle_info({stop_trace, TrcPattern}, #?STATE{ node = Node, cookie = Cookie } = State) ->
     goanna_db:delete_tracelist_pattern([Node, Cookie], TrcPattern),
     disable_tracing(Node, TrcPattern),
-    {noreply, State};
+    {noreply, State#?STATE{ trace_pattern_timer_ref = lists:keydelete(TrcPattern, 1, State#?STATE.trace_pattern_timer_ref) }};
 %%------------------------------------------------------------------------
 %%---Tracing--------------------------------------------------------------
-handle_info({trace, Opts}, #?STATE{ node = Node, cookie = Cookie } = State) ->
-    TrcPattern = lists:keyfind(trc, 1, Opts),
-    case goanna_db:store([trace_pattern, Node, Cookie], TrcPattern) of
-        true ->
-            enable_tracing(Node, TrcPattern),
+handle_info({trace, Opts}, #?STATE{ node = Node } = State) ->
+    %% TODO: make sure a MODULE is loaded on the remote node... ?
+    {trc, TrcPattern} = lists:keyfind(trc, 1, Opts),
+    % case goanna_db:store([trace_pattern, Node, Cookie], TrcPattern) of
+    case lists:keyfind(TrcPattern, 1, State#?STATE.trace_pattern_timer_ref) of
+        false ->
+            enable_tracing(Node, TrcPattern, State#?STATE.remote_trace_enabled),
             {time, MSecTime} = lists:keyfind(time, 1, Opts),
-            TRef = erlang:send_after(MSecTime, self(), stop_trace),
-            {noreply, State};
-        {error, already_traced} ->
+            TRef = erlang:send_after(MSecTime, self(), {stop_trace, TrcPattern}),
+            {noreply, State#?STATE{ trace_pattern_timer_ref = [{TrcPattern, TRef}|State#?STATE.trace_pattern_timer_ref] }};
+        _ ->
             {noreply, State}
     end;
 %%------------------------------------------------------------------------
@@ -93,6 +98,7 @@ handle_info({poll_results}, #?STATE{ node = Node,
 	{noreply, State};
 %%------------------------------------------------------------------------
 %%---Deal with message counts---------------------------------------------
+%% TODO: Should we have counts per trace pattern, or a count for everything ?
 handle_info({trace_item}, #?STATE{ node=_Node, cookie=_Cookie,
                                    trace_msg_count=TMC, trace_msg_total=TMT } = State) when TMC<TMT ->
     {noreply, State#?STATE{trace_msg_count = State#?STATE.trace_msg_count + 1}};
@@ -100,14 +106,16 @@ handle_info({trace_item}, #?STATE{ node=Node, cookie=Cookie,
                                    trace_msg_count=TMC, trace_msg_total=TMT } = State) when TMC>=TMT ->
     ?INFO("[~p] [~p] Trace message count limit reached...", [?MODULE, Node]),
     disable_all_tracing(Node, Cookie),
-    {noreply, State#?STATE{trace_msg_count = 0}};
+    {noreply, State#?STATE{trace_msg_count = 0,
+                           trace_pattern_timer_ref = [],
+                           remote_trace_enabled = false}};
 %%------------------------------------------------------------------------
 %%---Shoudn't happen, but hey... let's see ...----------------------------
 handle_info(Info, #?STATE{ node=Node, cookie=Cookie } = State) ->
     ?INFO("Info ~p : ~p", [goanna_sup:id(Node, Cookie), Info]),
     {noreply, State}.
 
-terminate(Reason, #?STATE{ node=Node, cookie=Cookie } = _State) ->
+terminate(Reason, #?STATE{ node=Node } = _State) ->
     ?INFO("[~p] terminate ~p ", [?MODULE, Reason]),
     true = goanna_db:delete_node(Node),
     ok.
@@ -116,15 +124,16 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 %%------------------------------------------------------------------------
 
-est_rem_conn(#?STATE{ node=Node, cookie=Cookie } = State) ->
+est_rem_conn(#?STATE{ node=Node, cookie=Cookie, type=Type } = State) ->
     case do_rem_conn(Node, Cookie) of
         true ->
-            State2 = trace_steps(State),
-            do_monitor_node(Node, State2#?STATE.connect_attempt_ref),
+            trace_steps(Node, Cookie, Type),
+            do_monitor_node(Node, State#?STATE.connect_attempt_ref),
             erlang:send_after(1, self(), {poll_results}),
-            {ok, State2#?STATE{connected=true,
+            {ok, State#?STATE{connected=true,
                                connect_attempt_ref = undefined,
-                               connect_attemps = 0 }};
+                               connect_attemps = 0,
+                               remote_trace_enabled = true }};
         false ->
             {ok, reconnect(State)}
     end.
@@ -141,9 +150,17 @@ do_monitor_node(Node, ConnectAttemptTref) ->
     ?INFO("[~p] ----------------- NODE ~p STARTUP COMPLETED -----------------\n\n",
         [?MODULE, Node]).
 
-trace_steps(#?STATE{node = Node,
-                    cookie = Cookie,
-                    type = tcpip_port} = State) ->
+trace_steps(Node, Cookie, tcpip_port) ->
+    tcpip_port_trace_steps(Node, Cookie),
+    reapply_traces(Node, Cookie);
+trace_steps(_Node, _Cookie, file) ->
+    ?WARNING("dbg trace_port file - fearure not implemented..."),
+    erlang:halt(1);
+trace_steps(Node, Cookie, erlang_distribution) ->
+    erlang_distribution_trace_steps(Node, Cookie),
+    reapply_traces(Node, Cookie).
+
+tcpip_port_trace_steps(Node, Cookie) ->
     RelayPort = erlang:phash2(Node, 9000)+1023, % +1023, to make sure it's above the safe range
     [_Name, RelayHost] = string:tokens(atom_to_list(Node), "@"),
     {ok, RemoteDbgPid} = dbg_start(Node),
@@ -158,17 +175,9 @@ trace_steps(#?STATE{node = Node,
     {ok, Fun} = handler_fun(Node, Cookie, tcpip_port),
     CLientPid = dbg:trace_client(ip, {RelayHost, RelayPort}, {Fun, ok}),
     link(CLientPid),
-    ?INFO("[~p] Node:~p MatchDesc:~p", [?MODULE, Node, MatchDesc]),
-    reapply_traces(State);
-trace_steps(#?STATE{node = _Node,
-                    cookie = _Cookie,
-                    type = file} = State) ->
-    ?WARNING("dbg trace_port file - fearure not implemented..."),
-    erlang:halt(1),
-    reapply_traces(State);
-trace_steps(#?STATE{node = Node,
-                    cookie = Cookie,
-                    type = erlang_distribution} = State) ->
+    ?INFO("[~p] Node:~p MatchDesc:~p", [?MODULE, Node, MatchDesc]).
+
+erlang_distribution_trace_steps(Node, Cookie) ->
     {ok, _RemoteDbgPid} = dbg_start(Node),
     {ok, RemoteFun} = handler_fun(Node, Cookie, erlang_distribution),
     case rpc:call(Node, dbg, tracer,
@@ -180,12 +189,11 @@ trace_steps(#?STATE{node = Node,
             ok
     end,
     {ok,MatchDesc} = rpc:call(Node, dbg, p, [all, call]),
-    ?INFO("[~p] Node:~p MatchDesc:~p", [?MODULE, Node, MatchDesc]),
-    reapply_traces(State).
+    ?INFO("[~p] Node:~p MatchDesc:~p", [?MODULE, Node, MatchDesc]).
 
 dbg_start(Node) ->
     try
-        {ok, Pid} = rpc:call(Node, dbg, start, [])
+        {ok, _Pid} = rpc:call(Node, dbg, start, [])
     catch
         error:{badmatch,{badrpc,{'EXIT',
                 {{case_clause,DbgPid},[{dbg,start,1,_},_]}}}} ->
@@ -211,19 +219,20 @@ handler_fun(Node, Cookie, erlang_distribution) ->
     {value, Fun, _} = erl_eval:expr(Form, Bindings),
     {ok, Fun}.
 
-reapply_traces(#?STATE{node = Node, cookie = Cookie} = State) ->
+%% TODO: how do i deal with, Trace counts and trace time, when re-applying?
+%% i would have to implement something remotely that stops maybe...
+reapply_traces(Node, Cookie) ->
     case goanna_db:lookup([trc_pattern, Node, Cookie]) of
         [] ->
             ok;
         TracePatternRecs ->
             FRec = fun({_Key, TrcPatternList}) ->
                 ok = lists:foreach(fun(TrcPattern) ->
-                    enable_tracing(Node, TrcPattern)
+                    enable_tracing(Node, TrcPattern, true)
                 end, TrcPatternList)
             end,
             lists:map(FRec, lists:flatten(TracePatternRecs))
-    end,
-    State.
+    end.
 
 reconnect(#?STATE{ connect_attemps = Attempts } = State) when Attempts > 10 ->
     ?CRITICAL("1000"),
@@ -244,21 +253,25 @@ reconnect(#?STATE{ connect_attemps = Attempts } = State) when Attempts =< 3 ->
                  connect_attemps = Attempts+1
     }.
 
-enable_tracing(_Node, false) ->
+enable_tracing(Node, TrcPattern, false) ->
+    [{Node, Cookie, Type}] = goanna_db:lookup([nodelist, Node]),
+    trace_steps(Node, Cookie, Type),
+    enable_tracing(Node, TrcPattern, true);
+enable_tracing(_Node, false, _) ->
     {error, nothing_to_trace};
-enable_tracing(Node, {trc, T=#trc_pattern{m=Module,f=undefined,a=undefined}}) ->
+enable_tracing(Node, T=#trc_pattern{m=Module,f=undefined,a=undefined}, true) ->
     ?INFO("[~p] [~p] enable_tracing:~p~n", [?MODULE, Node, T]),
     {ok, MatchDesc} = rpc:call(Node, dbg, tpl, [Module, cx]),
     ?INFO("[~p] [~p] dbg:tpl MatchDesc ~p",
         [?MODULE, Node, MatchDesc]);
 
-enable_tracing(Node, {trc, T=#trc_pattern{m=Module,f=Function,a=undefined}}) ->
+enable_tracing(Node, T=#trc_pattern{m=Module,f=Function,a=undefined}, true) ->
     ?INFO("[~p] [~p] enable_tracing:~p~n", [?MODULE, Node, T]),
     {ok, MatchDesc} = rpc:call(Node, dbg, tpl, [Module, Function, cx]),
     ?INFO("[~p] [~p] dbg:tpl MatchDesc ~p",
         [?MODULE, Node, MatchDesc]);
 
-enable_tracing(Node, {trc, T=#trc_pattern{m=Module,f=Function,a=Arity}}) ->
+enable_tracing(Node, T=#trc_pattern{m=Module,f=Function,a=Arity}, true) ->
     ?INFO("[~p] [~p] enable_tracing:~p~n", [?MODULE, Node, T]),
     {ok, MatchDesc} = rpc:call(Node, dbg, tpl,[Module, Function, Arity]),
     ?INFO("[~p] [~p] dbg:tpl MatchDesc ~p",
@@ -270,19 +283,19 @@ disable_tracing(Node, []) ->
     ?INFO("[~p] [~p] dbg:ctpl MatchDesc ~p",
         [?MODULE, Node, MatchDesc]);
 
-disable_tracing(Node, {trc, T=#trc_pattern{m=Module,f=undefined,a=undefined}}) ->
+disable_tracing(Node, T=#trc_pattern{m=Module,f=undefined,a=undefined}) ->
     ?INFO("[~p] [~p] Disable ~p tracing", [?MODULE, Node, T]),
     {ok,MatchDesc} = rpc:call(Node, dbg, ctpl, [Module]),
     ?INFO("[~p] [~p] dbg:ctpl MatchDesc ~p",
         [?MODULE, Node, MatchDesc]);
 
-disable_tracing(Node, {trc, T=#trc_pattern{m=Module,f=Function,a=undefined}}) ->
+disable_tracing(Node, T=#trc_pattern{m=Module,f=Function,a=undefined}) ->
     ?INFO("[~p] [~p] Disable ~p tracing", [?MODULE, Node, T]),
     {ok,MatchDesc} = rpc:call(Node, dbg, ctpl, [Module, Function]),
     ?INFO("[~p] [~p] dbg:ctpl MatchDesc ~p",
         [?MODULE, Node, MatchDesc]);
 
-disable_tracing(Node, {trc, T=#trc_pattern{m=Module,f=Function,a=Arity}}) ->
+disable_tracing(Node, T=#trc_pattern{m=Module,f=Function,a=Arity}) ->
     ?INFO("[~p] [~p] Disable ~p tracing", [?MODULE, Node, T]),
     {ok,MatchDesc} = rpc:call(Node, dbg, ctpl, [Module, Function, Arity]),
     ?INFO("[~p] [~p] dbg:ctpl MatchDesc ~p",
@@ -305,4 +318,7 @@ trace_results_loop(Mod, Tbl, Key) ->
 disable_all_tracing(Node, Cookie) ->
     ok = rpc:call(Node, dbg, stop_clear, []),
     true = goanna_db:truncate_tracelist([Node, Cookie]),
+
+    %% Just make sure dbg is always started..
+    {ok, _RemoteDbgPid} = dbg_start(Node),
     disable_tracing(Node, []).
