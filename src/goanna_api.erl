@@ -50,6 +50,7 @@ trace(Module, Function, Arity) ->
 trace(Module, Function, Arity, Opts) ->
     cluster_foreach({trace, Opts++[{trc, #trc_pattern{m=Module,f=Function,a=Arity}}]}).
 
+%% TODO: make default options a sys.config value
 trace_options_default() ->
     [{time, 20000},
      {messages, 10}
