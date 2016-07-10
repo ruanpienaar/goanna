@@ -278,7 +278,7 @@ enable_tracing(Node, T=#trc_pattern{m=Module,f=Function,a=undefined}, true) ->
 
 enable_tracing(Node, T=#trc_pattern{m=Module,f=Function,a=Arity}, true) ->
     ?INFO("[~p] [~p] enable_tracing:~p~n", [?MODULE, Node, T]),
-    {ok, MatchDesc} = rpc:call(Node, dbg, tpl,[Module, Function, Arity]),
+    {ok, MatchDesc} = rpc:call(Node, dbg, tpl,[Module, Function, Arity, cx]),
     ?INFO("[~p] [~p] dbg:tpl MatchDesc ~p",
         [?MODULE, Node, MatchDesc]).
 
