@@ -201,10 +201,12 @@ dbg_start(Node) ->
         {ok, _Pid} = rpc:call(Node, dbg, start, [])
     catch
         error:{badmatch,{badrpc,{'EXIT',
-                {{case_clause,DbgPid},[{dbg,start,1,_},_]}}}} ->
+                {{case_clause,DbgPid},_}
+              }}} ->
             {ok, DbgPid};
         C:E ->
-            ?WARNING("[~p] dbg start failed ~p", [?MODULE, {C,E}])
+            ?WARNING("[~p] dbg start failed ~p", [?MODULE, {C,E}]),
+            {ok, undefined}
     end.
 
 handler_fun(Node, Cookie, tcpip_port) ->
