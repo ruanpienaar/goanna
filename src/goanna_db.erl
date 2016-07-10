@@ -42,7 +42,9 @@ store([trace, Node, Cookie], Trace) ->
 lookup([nodelist, Node]) ->
     ets:lookup(nodelist, Node);
 lookup([trc_pattern, Node, Cookie]) ->
-    ets:lookup(tracelist, {Node, Cookie}).
+    ets:lookup(tracelist, {Node, Cookie});
+lookup([trace, Tbl, Key]) ->
+    ets:lookup(Tbl, Key).
 
 delete_node(Node) ->
     ets:delete(nodelist, Node).
