@@ -21,7 +21,7 @@
                  node,
                  cookie,
                  type,
-                 trace_forward_callback,
+                 poll_forward_callback_mod,
                  trace_msg_count=0,
                  trace_msg_total=100, %% Any callback module...
                  trace_pattern_timer_ref=[],
@@ -34,14 +34,19 @@ start_link(_NodeObj = {Node, Cookie, Type}) ->
                           ?MODULE, {Node,Cookie,Type}, []).
 
 init({Node, Cookie, Type}) ->
-	Mod = application:get_env(goanna, trace_forward_callback, goanna_shell_printer),
-	c:l(goanna_shell_printer),
+	Mod = application:get_env(goanna, poll_forward_callback_mod, goanna_shell_printer),
+    case Mod of
+        goanna_shell_printer ->
+	       c:l(goanna_shell_printer);
+        _ ->
+            ok
+    end,
 	case erlang:function_exported(Mod, forward, 2) of
 		true ->
             est_rem_conn(#?STATE{node=Node,
                                  cookie=Cookie,
                                  type=Type,
-                                 trace_forward_callback=Mod
+                                 poll_forward_callback_mod=Mod
             });
         false ->
             erlang:halt(1)
@@ -92,9 +97,9 @@ handle_info({trace, Opts}, #?STATE{ node = Node } = State) ->
 %%---Poll results, and forward upwards------------------------------------
 handle_info({poll_results}, #?STATE{ node = Node,
 									 cookie = Cookie,
-									 trace_forward_callback = Mod } = State) ->
+									 poll_forward_callback_mod = Mod } = State) ->
 	ok = poll_table(Mod, Node, Cookie),
-	erlang:send_after(application:get_env(goanna, poll_interval, 1000), self(), {poll_results}),
+    polling(),
 	{noreply, State};
 %%------------------------------------------------------------------------
 %%---Deal with message counts---------------------------------------------
@@ -129,7 +134,7 @@ est_rem_conn(#?STATE{ node=Node, cookie=Cookie, type=Type } = State) ->
         true ->
             trace_steps(Node, Cookie, Type),
             do_monitor_node(Node, State#?STATE.connect_attempt_ref),
-            erlang:send_after(1, self(), {poll_results}),
+            polling(),
             {ok, State#?STATE{connected=true,
                                connect_attempt_ref = undefined,
                                connect_attemps = 0,
@@ -305,13 +310,23 @@ poll_table(Mod, Node, Cookie) ->
 	Tbl=goanna_sup:id(Node, Cookie),
 	trace_results_loop(Mod, Tbl).
 
+polling() ->
+    Interval = application:get_env(goanna, poll_interval, 1000),
+    case application:get_env(goanna, poll_data, false) of
+        true ->
+            erlang:send_after(Interval, self(), {poll_results});
+        false ->
+            ok
+    end.
+
 trace_results_loop(Mod, Tbl) ->
     trace_results_loop(Mod, Tbl, ets:first(Tbl)).
 
+%% TODO: Simplify, and abstract out, this simple db table walk
 trace_results_loop(_Mod, _Tbl, '$end_of_table') ->
     ok;
 trace_results_loop(Mod, Tbl, Key) ->
-	ok = Mod:forward(Tbl, ets:lookup(Tbl, Key)),
+    ok = Mod:forward(Tbl, goanna_db:lookup([trace, Tbl, Key])),
     true = ets:delete(Tbl, Key),
     trace_results_loop(Mod, Tbl, ets:next(Tbl, Key)).
 

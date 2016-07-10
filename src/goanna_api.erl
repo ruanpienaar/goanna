@@ -6,7 +6,7 @@
 ]).
 
 -export([
-    trace/1, trace/2, trace/3,
+    trace/1, trace/2, trace/3, trace/4,
     stop_trace/0, stop_trace/1, stop_trace/2, stop_trace/3
 ]).
 
@@ -46,6 +46,9 @@ trace(Module, Function, Arity) ->
     Opts = trace_options_default()
         ++ [{trc, #trc_pattern{m=Module,f=Function,a=Arity}}],
     cluster_foreach({trace, Opts}).
+
+trace(Module, Function, Arity, Opts) ->
+    cluster_foreach({trace, Opts++[{trc, #trc_pattern{m=Module,f=Function,a=Arity}}]}).
 
 trace_options_default() ->
     [{time, 20000},
