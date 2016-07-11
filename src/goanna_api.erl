@@ -2,7 +2,8 @@
 -export([
     start/0,
     add_node/3,
-    remove_node/1
+    remove_node/1,
+    nodes/0
 ]).
 
 -export([
@@ -11,6 +12,7 @@
 ]).
 
 -export([store_trace/2]).
+-define(GOANNA_SUP, goanna_sup).
 
 -include_lib("goanna.hrl").
 
@@ -26,11 +28,15 @@ start() ->
          goldrush, lager, goanna]
     ].
 
+nodes() ->
+        [Name || {Name, _, _, _} <- supervisor:which_children(?GOANNA_SUP)].
+
+-spec add_node(atom(), atom(), erlang_distribution | file | tcpip_port) -> {ok, pid()}.
 add_node(Node, Cookie, Type) ->
-	goanna_sup:start_child(Node, Cookie, Type).
+	?GOANNA_SUP:start_child(Node, Cookie, Type).
 
 remove_node(Node) ->
-	goanna_sup:delete_child(Node).
+	?GOANNA_SUP:delete_child(Node).
 
 % TODO: COMPLETE!!!!!!!
 % update_default_trace_options() ->
@@ -75,10 +81,10 @@ cluster_foreach_pidbang(Msg) ->
     ).
 
 pidbang_node(Node, Cookie, Msg) ->
-    whereis(goanna_sup:id(Node, Cookie)) ! Msg.
+    whereis(?GOANNA_SUP:id(Node, Cookie)) ! Msg.
 
 call_node(Node, Cookie, Msg) ->
-    gen_server:call(goanna_sup:id(Node, Cookie), Msg).
+    gen_server:call(?GOANNA_SUP:id(Node, Cookie), Msg).
 
 %%------------------------------------------------------------------------
 
