@@ -37,7 +37,7 @@ init({Node, Cookie, Type}) ->
     {ok, Mod} = application:get_env(goanna, forward_callback_mod),
     DefaultTraceOpts = application:get_env(goanna, default_trace_options, []),
     TraceTime = default_or_new_option(time, DefaultTraceOpts, false),
-    MessageCount = lists:keyfind(messages, 1, DefaultTraceOpts),
+    MessageCount = default_or_new_option(messages, DefaultTraceOpts, false),
     case Mod of
         undefined ->
             ok;
@@ -66,6 +66,14 @@ init({Node, Cookie, Type}) ->
     }).
 
 %%------------------------------------------------------------------------
+%%---Disable Tracing------------------------------------------------------
+handle_call(stop_all_trace_patterns, _From, #?STATE{node=Node, cookie=Cookie} = State) ->
+    disable_all_tracing(Node, Cookie),
+    cancel_timer(State#?STATE.trace_timer_tref),
+    {reply, ok, State#?STATE{
+        active_trace_patterns = orddict:new(),
+        trace_msg_count = 0
+    }};
 handle_call(_Request, _From, State) ->
     {reply, {error, unknown_call}, State}.
 
@@ -85,32 +93,41 @@ handle_info(reconnect, #?STATE{node=Node} = State) ->
 %%---Disable Tracing------------------------------------------------------
 handle_info(stop_all_trace_patterns,#?STATE{node=Node, cookie=Cookie} = State) ->
     disable_all_tracing(Node, Cookie),
-    {noreply, State#?STATE{active_trace_patterns = orddict:new()}};
+    cancel_timer(State#?STATE.trace_timer_tref),
+    {noreply, State#?STATE{
+        active_trace_patterns = orddict:new(),
+        trace_msg_count = 0
+    }};
 handle_info({stop_trace, TrcPattern},
         #?STATE{node=Node, active_trace_patterns=ATP} = State) ->
     disable_tracing(Node, TrcPattern),
+    cancel_timer(State#?STATE.trace_timer_tref),
     {noreply, State#?STATE{
-        active_trace_patterns = orddict:erase(TrcPattern, ATP)
+        active_trace_patterns = orddict:erase(TrcPattern, ATP),
+        trace_msg_count = 0
     }};
 %%------------------------------------------------------------------------
 %%---Tracing--------------------------------------------------------------
 handle_info({trace, Opts}, #?STATE{node=Node, active_trace_patterns=ATP } = State) ->
     {trc, TrcPattern} = lists:keyfind(trc, 1, Opts),
     MSecTime = default_or_new_option(time, Opts, State#?STATE.trace_time),
-    NewMaxMsgCount = default_or_new_option(messages, Opts, State#?STATE.trace_msg_total),
+    NewMaxMsgTotal = default_or_new_option(messages, Opts, State#?STATE.trace_msg_total),
+
+    ?CRITICAL("TRACING for ~p seconds, and ~p messages", [MSecTime, NewMaxMsgTotal]),
+
     case orddict:find(TrcPattern, ATP) of
         error ->
             enable_tracing(Node, TrcPattern),
             {noreply, State#?STATE{
                 active_trace_patterns = orddict:append(TrcPattern, nothing_yet, ATP),
-                trace_msg_count = NewMaxMsgCount,
+                trace_msg_total = NewMaxMsgTotal,
                 trace_timer_tref =
                     trace_timer(MSecTime, State#?STATE.trace_time, State#?STATE.trace_timer_tref, TrcPattern)
             }};
         %% Just re-new the timer, if called with the same pattern
-        {ok,nothing_yet} ->
+        {ok,[nothing_yet]} ->
             {noreply, State#?STATE{
-                trace_msg_count = NewMaxMsgCount,
+                trace_msg_total = NewMaxMsgTotal,
                 trace_timer_tref =
                     trace_timer(MSecTime, State#?STATE.trace_time, State#?STATE.trace_timer_tref, TrcPattern)
             }}
@@ -123,14 +140,30 @@ handle_info({push_data}, #?STATE{node=Node, cookie=Cookie, forward_callback_mod=
 	{noreply, State};
 %%------------------------------------------------------------------------
 %%---Deal with message counts---------------------------------------------
+
+
+%% TODO: move this to a call...
+
+
+handle_info({trace_item}, #?STATE{ trace_msg_count=TMC, trace_msg_total=false } = State) ->
+    % ?ALERT("trace item !!! false"),
+    io:format("N"),
+    {noreply, State#?STATE{trace_msg_count = TMC + 1}};
 handle_info({trace_item}, #?STATE{ trace_msg_count=TMC, trace_msg_total=TMT } = State) when TMC<TMT ->
+    % ?ALERT("trace item !!! Count(~p) is small than Total(~p)", [TMC, TMT]),
+    io:format("."),
     {noreply, State#?STATE{trace_msg_count = TMC + 1}};
 handle_info({trace_item}, #?STATE{ node=Node, cookie=Cookie,
                                    trace_msg_count=TMC, trace_msg_total=TMT } = State) when TMC>=TMT ->
+    % ?ALERT("trace item !!! Count is LARGER than Total"),
+    io:format("X~n"),
     ?INFO("[~p] [~p] Trace message count limit reached...", [?MODULE, Node]),
     disable_all_tracing(Node, Cookie),
+    cancel_timer(State#?STATE.trace_timer_tref),
     {noreply, State#?STATE{trace_msg_count = 0,
-                           active_trace_patterns = orddict:new()}};
+                           active_trace_patterns = orddict:new(),
+                           trace_timer_tref = false
+    }};
 %%------------------------------------------------------------------------
 %%---Shoudn't happen, but hey... let's see ...----------------------------
 handle_info(Info, #?STATE{ node=Node, cookie=Cookie } = State) ->
@@ -316,18 +349,15 @@ trace_results_loop(Mod, Tbl, Node, Key) ->
     trace_results_loop(Mod, Tbl, Node, ets:next(Tbl, Key)).
 
 disable_all_tracing(Node, Cookie) ->
+    disable_tracing(Node, []),
     ok = rpc:call(Node, dbg, stop_clear, []),
     %% Just make sure dbg, and tracer is always started..
     {ok, _RemoteDbgPid} = dbg_start(Node),
     [{Node, Cookie, Type}] = goanna_db:lookup([nodelist, Node]),
-    trace_steps(Node, Cookie, Type),
-    disable_tracing(Node, []).
+    trace_steps(Node, Cookie, Type).
 
 trace_timer(MSecTime, DefaultMSecTime, ExistingTRef, TrcPattern) ->
-    case ExistingTRef of
-        undefined    -> ok;
-        ExistingTRef -> {ok, cancel} = timer:cancel(ExistingTRef)
-    end,
+    cancel_timer(ExistingTRef),
     Time =
         case {MSecTime, DefaultMSecTime} of
             {false,false} -> false;
@@ -337,10 +367,18 @@ trace_timer(MSecTime, DefaultMSecTime, ExistingTRef, TrcPattern) ->
         end,
     stop_trace_event(Time, TrcPattern).
 
+cancel_timer(ExistingTRef) ->
+    % ?CRITICAL("~p~n", [ExistingTRef]),
+    case ExistingTRef of
+        false        -> ok;
+        ExistingTRef -> {ok, cancel} = timer:cancel(ExistingTRef)
+    end.
+
 stop_trace_event(false, TrcPattern) ->
-    ok;
+    false;
 stop_trace_event(Time, TrcPattern) ->
-    TRef = erlang:send_after(Time, self(), {stop_trace, TrcPattern}).
+    {ok, TRef} = timer:send_after(Time, self(), {stop_trace, TrcPattern}),
+    TRef.
 
 default_or_new_option(Field, Opts, Default) ->
     case lists:keyfind(Field, 1, Opts) of

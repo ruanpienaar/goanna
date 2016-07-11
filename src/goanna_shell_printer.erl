@@ -6,7 +6,7 @@
 
 forward(Tbl, [{Now, TraceItem}]) ->
     %% Warning, to use the nice Yellow color, from the default config.
-	?WARNING("[~p] [~p] ~p", [get_time(Now), Tbl, TraceItem]),
+	% ?WARNING("[~p] [~p] ~p", [get_time(Now), Tbl, TraceItem]),
     ok.
 
 get_time({_,_,Micro} = Timestamp) ->

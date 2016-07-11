@@ -26,6 +26,7 @@
 %% ===================================================================
 
 start_link() ->
+    reloader:start_link(),
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 start_child(Node, Cookie, Type) ->
@@ -36,7 +37,7 @@ delete_child(Node) ->
 	[{Node, Cookie,_}] = goanna_db:lookup([nodelist, Node]),
 	ID=id(Node,Cookie),
 	ok = supervisor:terminate_child(?MODULE, ID),
-	supervisor:delete_child(?MODULE, ID).
+	supervisor:delete_child(?MODULE, ID).  
 
 %% ===================================================================
 %% Supervisor callbacks
