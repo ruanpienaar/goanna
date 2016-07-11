@@ -23,18 +23,6 @@ init_node([Node, Cookie, Type]) ->
     Name = ets:new(Name, [public, ordered_set, named_table]),
     {ok, NodeObj}.
 
-store([trace_pattern, Node, Cookie], TracePattern) ->
-    case ets:lookup(tracelist, {Node, Cookie}) of
-        [{{Node, Cookie}, TracePatterns}] ->
-            case lists:member(TracePattern, TracePatterns) of
-                true ->
-                    {error, already_traced};
-                false ->
-                    ets:insert(tracelist, {{Node, Cookie},[TracePattern|TracePatterns]})
-            end;
-        [] ->
-            ets:insert(tracelist, {{Node, Cookie},[TracePattern]})
-    end;
 store([trace, Node, Cookie], Trace) ->
     Name = goanna_sup:id(Node, Cookie),
     ets:insert(Name, {erlang:timestamp(),Trace}).

@@ -32,32 +32,24 @@ add_node(Node, Cookie, Type) ->
 remove_node(Node) ->
 	goanna_sup:delete_child(Node).
 
+% TODO: COMPLETE!!!!!!!
+% update_default_trace_options() ->
+%     application:set_env(goanna,
+
 trace(Module) ->
-    Opts = trace_options_default()
-        ++ [{trc, #trc_pattern{m=Module}}],
-    cluster_foreach({trace, Opts}).
+    cluster_foreach({trace, [{trc, #trc_pattern{m=Module}}]}).
 
 trace(Module, Function) ->
-    Opts = trace_options_default()
-        ++ [{trc, #trc_pattern{m=Module,f=Function}}],
-    cluster_foreach({trace, Opts}).
+    cluster_foreach({trace, [{trc, #trc_pattern{m=Module,f=Function}}]}).
 
 trace(Module, Function, Arity) ->
-    Opts = trace_options_default()
-        ++ [{trc, #trc_pattern{m=Module,f=Function,a=Arity}}],
-    cluster_foreach({trace, Opts}).
+    cluster_foreach({trace, [{trc, #trc_pattern{m=Module,f=Function,a=Arity}}]}).
 
 trace(Module, Function, Arity, Opts) ->
     cluster_foreach({trace, Opts++[{trc, #trc_pattern{m=Module,f=Function,a=Arity}}]}).
 
-%% TODO: make default options a sys.config value
-trace_options_default() ->
-    [{time, 20000},
-     {messages, 10}
-    ].
-
 stop_trace() ->
-    cluster_foreach(stop_trace).
+    cluster_foreach(stop_all_trace_patterns).
 
 stop_trace(Module) ->
     cluster_foreach({stop_trace, #trc_pattern{m=Module}}).
