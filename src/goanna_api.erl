@@ -1,25 +1,27 @@
 -module (goanna_api).
+
+%% Control Api
 -export([
     start/0,
     add_node/3,
     remove_node/1,
-    nodes/0
+    nodes/0,
+    update_default_trace_options/1
 ]).
 
+%% Trace Api
 -export([
     trace/1, trace/2, trace/3, trace/4,
-    stop_trace/0, stop_trace/1, stop_trace/2, stop_trace/3
+    stop_trace/0, stop_trace/1, stop_trace/2, stop_trace/3,
+    recv_trace/2
 ]).
-
--export([store_trace/2]).
--define(GOANNA_SUP, goanna_sup).
 
 -include_lib("goanna.hrl").
 
 %%------------------------------------------------------------------------
 %% API
 
-%% Helper only
+%% Goanna start-up helper only
 start() ->
     [
         application:start(APP)
@@ -29,18 +31,25 @@ start() ->
     ].
 
 nodes() ->
-        [Name || {Name, _, _, _} <- supervisor:which_children(?GOANNA_SUP)].
+    [ChildId || {ChildId, _, _, _} <- supervisor:which_children(goanna_node_sup)].
 
 -spec add_node(atom(), atom(), erlang_distribution | file | tcpip_port) -> {ok, pid()}.
 add_node(Node, Cookie, Type) ->
-	?GOANNA_SUP:start_child(Node, Cookie, Type).
+	goanna_node_sup:start_child(Node, Cookie, Type).
 
 remove_node(Node) ->
-	?GOANNA_SUP:delete_child(Node).
+	goanna_node_sup:delete_child(Node).
 
-% TODO: COMPLETE!!!!!!!
-% update_default_trace_options() ->
-%     application:set_env(goanna,
+update_default_trace_options(Opts) ->
+    {ok, DefaultOpts} = application:get_env(goanna, default_trace_options),
+    F = fun
+        ({time, Time}, DefOpts) when is_integer(Time) ->
+            lists:keystore(time, 1, DefOpts, {time, Time});
+        ({messages, Msgs}, DefOpts) when is_integer(Msgs) ->
+            lists:keystore(messages, 1, DefOpts, {messages, Msgs})
+    end,
+    NewDefaultOpts = lists:foldl(F, DefaultOpts, Opts),
+    application:set_env(goanna, default_trace_options, NewDefaultOpts).
 
 trace(Module) ->
     cluster_foreach_call({trace, [{trc, #trc_pattern{m=Module}}]}).
@@ -81,12 +90,39 @@ cluster_foreach_call(Msg) ->
 %     ).
 
 % pidbang_node(Node, Cookie, Msg) ->
-%     whereis(?GOANNA_SUP:id(Node, Cookie)) ! Msg.
+%     whereis(goanna_node_sup:id(Node, Cookie)) ! Msg.
+
+% call_node(ChildId, Msg) ->
+%     gen_server:call(ChildId, Msg).
 
 call_node(Node, Cookie, Msg) ->
-    gen_server:call(?GOANNA_SUP:id(Node, Cookie), Msg).
+    gen_server:call(goanna_node_sup:id(Node, Cookie), Msg).
 
 %%------------------------------------------------------------------------
+recv_trace([trace, ChildId], Trace={trace, _Pid, _Label, _Info}) ->
+    pidbang_trace_collector({trace_item, ChildId, Trace});
+recv_trace([trace, ChildId], Trace={trace, _Pid, _Label, _Info, _Extra}) ->
+    pidbang_trace_collector({trace_item, ChildId, Trace});
 
-store_trace([trace, Node, Cookie],Trace) ->
-    ok = call_node(Node, Cookie, {trace_item, Trace}).
+recv_trace([trace, ChildId], Trace={trace_ts, _Pid, _Label, _Info, _ReportedTS}) ->
+    pidbang_trace_collector({trace_item, ChildId, Trace});
+recv_trace([trace, ChildId], Trace={trace_ts, _Pid, _Label, _Info, _Extra, _ReportedTS}) ->
+    pidbang_trace_collector({trace_item, ChildId, Trace});
+
+recv_trace([trace, _ChildId], Trace={seq_trace, _Label, _SeqTraceInfo}) ->
+    %pidbang_trace_collector({trace_item, ChildId, Trace});
+    ?CRITICAL("! Trace Message ~p not implemented yet !", [Trace]),
+    ok;
+recv_trace([trace, _ChildId], Trace={seq_trace, _Label, _SeqTraceInfo, _ReportedTS}) ->
+    %pidbang_trace_collector({trace_item, ChildId, Trace});
+    ?CRITICAL("! Trace Message ~p not implemented yet !", [Trace]),
+    ok;
+
+recv_trace([trace, _ChildId], Trace={drop, _NumberOfDroppedItems}) ->
+    %pidbang_trace_collector({trace_item, ChildId, Trace}).
+    ?CRITICAL("! Trace Message ~p not implemented yet !", [Trace]),
+    ok.
+
+pidbang_trace_collector(Msg) ->
+    whereis(goanna_trace_collector) ! Msg,
+    ok.
