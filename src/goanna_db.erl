@@ -19,13 +19,15 @@ init() ->
 init_node([Node, Cookie, Type]) ->
     NodeObj = {Node, Cookie, Type},
     true = ets:insert(nodelist, NodeObj),
-    Name = goanna_sup:id(Node, Cookie),
-    Name = ets:new(Name, [public, ordered_set, named_table]),
+    ChildId = goanna_node_sup:id(Node, Cookie),
+    ChildId = ets:new(ChildId, [public, ordered_set, named_table]),
     {ok, NodeObj}.
 
+store([trace, ChildId], Trace) ->
+    ets:insert(ChildId, {erlang:timestamp(),Trace});
 store([trace, Node, Cookie], Trace) ->
-    Name = goanna_sup:id(Node, Cookie),
-    ets:insert(Name, {erlang:timestamp(),Trace}).
+    ChildId = goanna_node_sup:id(Node, Cookie),
+    ets:insert(ChildId, {erlang:timestamp(),Trace}).
 
 lookup([nodelist, Node]) ->
     ets:lookup(nodelist, Node);
