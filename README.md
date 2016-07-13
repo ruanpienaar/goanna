@@ -26,8 +26,7 @@
 1. escriptify
 2. custom trace_port client
 3. custom front end application to read ets tables, and format entries
-4. tracing timers
-5. message queue depth, to prevent tracing from spiraling out of control
+4. be able to work with short/long names in the erlang distribution
 
 
 #setup
