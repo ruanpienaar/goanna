@@ -2,13 +2,13 @@ language: erlang
 notifications:
   email: ruan800@gmail.cmo
 otp_release:
-  - R16B
-  - R15B01
-  - R15B
-  - R14B04
+  - R15B03-1
+  - R16B03-1
+  - 17.3
   - 17.5
+  - 18.0
   - 18.3
-  - 19
+  - 19.0
 script: rebar compile && rebar skip_deps=true eunit && rebar skip_deps=true ct
 env:
   global:
