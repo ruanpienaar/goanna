@@ -1,4 +1,4 @@
--module(basic_SUITE).
+-module(goanna_tests).
 -include_lib("common_test/include/ct.hrl").
 
 -export([all/0]).
