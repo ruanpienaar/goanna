@@ -14,6 +14,5 @@ start(_StartType, _StartArgs) ->
     goanna_sup:start_link().
 
 stop(_State) ->
-    % Stop all traces! 
     goanna_api:stop_trace(),
     ok.

@@ -29,6 +29,7 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
+    goanna_db:init(),
     RestartStrategy = one_for_one,
     MaxRestarts = 10000,
     MaxSecondsBetweenRestarts = 9600,

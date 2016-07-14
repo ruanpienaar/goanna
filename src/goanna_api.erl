@@ -34,7 +34,9 @@ nodes() ->
     [ChildId || {ChildId, _, _, _} <- supervisor:which_children(goanna_node_sup)].
 
 -spec add_node(atom(), atom(), erlang_distribution | file | tcpip_port) -> {ok, pid()}.
-add_node(Node, Cookie, Type) ->
+add_node(Node, Cookie, Type) when Type == erlang_distribution;
+                                  Type == file;
+                                  Type == tcpip_port ->
 	goanna_node_sup:start_child(Node, Cookie, Type).
 
 remove_node(Node) ->
@@ -99,6 +101,8 @@ call_node(Node, Cookie, Msg) ->
     gen_server:call(goanna_node_sup:id(Node, Cookie), Msg).
 
 %%------------------------------------------------------------------------
+recv_trace([trace, ChildId], end_of_trace) ->
+    ok;
 recv_trace([trace, ChildId], Trace={trace, _Pid, _Label, _Info}) ->
     pidbang_trace_collector({trace_item, ChildId, Trace});
 recv_trace([trace, ChildId], Trace={trace, _Pid, _Label, _Info, _Extra}) ->

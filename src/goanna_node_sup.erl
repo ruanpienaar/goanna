@@ -26,27 +26,29 @@
 %% ===================================================================
 
 start_link() ->
-    reloader:start_link(),
-    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+    supervisor:start_link({local, ?MODULE}, ?MODULE, [application:get_env(goanna, nodes, [])]).
 
 start_child(Node, Cookie, Type) ->
-    {ok, NodeObj} = goanna_db:init_node([Node, Cookie, Type]),
-    supervisor:start_child(?MODULE, ?CHILD(id(Node,Cookie), goanna, worker, [NodeObj])).
+    supervisor:start_child(?MODULE, ?CHILD(id(Node,Cookie), goanna_node, worker, [{Node, Cookie, Type}])).
 
 delete_child(Node) ->
-    [{Node, Cookie,_}] = goanna_db:lookup([nodelist, Node]),
-    ID=id(Node,Cookie),
-    ok = supervisor:terminate_child(?MODULE, ID),
-    supervisor:delete_child(?MODULE, ID).  
+    case goanna_db:lookup([nodelist, Node]) of
+        [{Node, Cookie,_}] ->
+            ID=id(Node,Cookie),
+            ok = supervisor:terminate_child(?MODULE, ID),
+            ok = supervisor:delete_child(?MODULE, ID);
+        [] ->
+            {error, no_such_node}
+    end.
+    
 
 %% ===================================================================
 %% Supervisor callbacks
 %% ===================================================================
 
-init([]) ->
-    goanna_db:init(),
-    SysConfNodes = application:get_env(goanna, nodes, []),
-    Children = lists:map(fun([{node,Node},{cookie,Cookie},{type,Type}]) ->
+init([SysConfNodes]) ->
+    Children 
+        = lists:map(fun([{node,Node},{cookie,Cookie},{type,Type}]) ->
             {ok, NodeObj} = goanna_db:init_node([Node, Cookie, Type]),
             ?CHILD(id(Node,Cookie), goanna_node, worker, [NodeObj])
         end, SysConfNodes),
