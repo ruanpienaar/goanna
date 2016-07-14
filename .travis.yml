@@ -2,7 +2,9 @@ language: erlang
 notifications:
   email: ruan800@gmail.cmo
 otp_release:
-  - R15B03-1
+  - R15B
+  - R15B01
+  - R15B03
   - R16B03-1
   - 17.3
   - 17.5
