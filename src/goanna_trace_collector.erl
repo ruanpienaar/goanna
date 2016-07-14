@@ -21,7 +21,7 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info({trace_item, NodeChildId, Trace}, State) ->
-    ok = gen_server:call(NodeChildId, {trace_item, Trace}),
+    ok = gen_server:call(NodeChildId, {trace_item, Trace}, infinity),
     {noreply, State}.
 
 terminate(_Reason, _State) ->

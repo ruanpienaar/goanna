@@ -2,6 +2,7 @@
 -export ([
           init/0,
           init_node/1,
+          node_table_exists/2,
           store/2,
           lookup/1,
           delete_node/1,
@@ -23,16 +24,28 @@ init_node([Node, Cookie, Type]) ->
     ChildId = ets:new(ChildId, [public, ordered_set, named_table]),
     {ok, NodeObj}.
 
+node_table_exists(Node, Cookie) ->
+    ChildId = goanna_node_sup:id(Node, Cookie),
+    case ets:info(ChildId, size) of
+        undefined            -> false;
+        S when is_integer(S) -> true
+    end.
+
 store([trace, ChildId], Trace) ->
     ets:insert(ChildId, {erlang:timestamp(),Trace});
 store([trace, Node, Cookie], Trace) ->
     ChildId = goanna_node_sup:id(Node, Cookie),
-    ets:insert(ChildId, {erlang:timestamp(),Trace}).
+    ets:insert(ChildId, {erlang:timestamp(),Trace});
+store([tracelist, ChildId], TracePattern) ->
+    ets:insert(tracelist, {{ChildId, TracePattern}, erlang:timestamp()}).
 
 lookup([nodelist, Node]) ->
     ets:lookup(nodelist, Node);
-lookup([trc_pattern, Node, Cookie]) ->
-    ets:lookup(tracelist, {Node, Cookie});
+lookup([trc_pattern, ChildId, TracePattern]) ->
+    ets:lookup(tracelist, {ChildId, TracePattern});
+lookup([trc_pattern, Node, Cookie, TracePattern]) ->
+    ChildId = goanna_node_sup:id(Node, Cookie),
+    ets:lookup(tracelist, {ChildId, TracePattern});
 lookup([trace, Tbl, Key]) ->
     ets:lookup(Tbl, Key).
 
