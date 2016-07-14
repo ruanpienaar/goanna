@@ -1,5 +1,6 @@
 
 # [Goanna](https://en.wikipedia.org/wiki/Goanna) Cluster tracing library
+[![Build Status](https://travis-ci.org/ruanpienaar/goanna.svg?branch=master)](https://travis-ci.org/ruanpienaar/goanna)
 
 
 ```
