@@ -52,6 +52,13 @@ init({Node, Cookie, Type, ChildId}) ->
                 trace_msg_total=MessageCount,
                 trace_time=TraceTime
     }).
+
+handle_call({update_state}, _From, State) ->
+    DefaultTraceOpts = application:get_env(goanna, default_trace_options, []),
+    TraceTime = default_or_new_option(time, DefaultTraceOpts, false),
+    MessageCount = default_or_new_option(messages, DefaultTraceOpts, false),
+    {reply, ok, State#?STATE{trace_msg_total=MessageCount,
+                             trace_time=TraceTime}};
 %%------------------------------------------------------------------------
 %%---Tracing--------------------------------------------------------------
 handle_call({trace, Opts}, _From, #?STATE{node=Node,
@@ -271,7 +278,7 @@ tcpip_port_trace_steps(Node, Cookie) ->
     [_Name, RelayHost] = string:tokens(atom_to_list(Node), "@"),
     {ok, RemoteDbgPid} = dbg_start(Node),
     %% Dbg pid is already linked...
-    ?DEBUG("DBG START Process info:~p~n~p", [RemoteDbgPid, erlang:process_info(RemoteDbgPid)]),
+    ?DEBUG("DBG START Process:~p~n", [RemoteDbgPid]),
     PortGenerator = rpc:call(Node, dbg, trace_port, [ip, RelayPort]),
     case rpc:call(Node, dbg, tracer, [port, PortGenerator]) of
         {error, already_started} ->
@@ -288,7 +295,7 @@ tcpip_port_trace_steps(Node, Cookie) ->
 
 erlang_distribution_trace_steps(Node, Cookie) ->
     {ok, RemoteDbgPid} = dbg_start(Node),
-    ?DEBUG("DBG START Process info:~n~p", [erlang:process_info(RemoteDbgPid)]),
+    ?DEBUG("DBG START Process:~n~p", [RemoteDbgPid]),
     {ok, RemoteFun} = handler_fun(Node, Cookie, erlang_distribution),
     case rpc:call(Node, dbg, tracer,
                  [Node, process, {RemoteFun, ok}])
