@@ -7,10 +7,16 @@
           lookup/1,
           delete_node/1,
           delete_tracelist_pattern/2,
-          truncate_tracelist/1
+          truncate_tracelist/1,
+          truncate_traces/1
 ]).
 
 %% API
+
+%% TODO: allow older erlang versions, to use the legacy erlang now()
+%% possibly update the macro below with a -ifdef, checking versions,
+%% or do a complete overhaul to rebar3
+-define(GOANNA_NOW(), erlang:timestamp()).
 
 init() ->
     nodelist = ets:new(nodelist, [public, set, named_table]),
@@ -32,34 +38,37 @@ node_table_exists(Node, Cookie) ->
     end.
 
 store([trace, ChildId], Trace) ->
-    ets:insert(ChildId, {erlang:timestamp(),Trace});
+    ets:insert(ChildId, {?GOANNA_NOW(),Trace});
 store([trace, Node, Cookie], Trace) ->
     ChildId = goanna_node_sup:id(Node, Cookie),
-    ets:insert(ChildId, {erlang:timestamp(),Trace});
-store([tracelist, ChildId], TracePattern) ->
-    ets:insert(tracelist, {{ChildId, TracePattern}, erlang:timestamp()}).
+    ets:insert(ChildId, {?GOANNA_NOW(),Trace});
+store([tracelist, ChildId], TrcPattern) ->
+    ets:insert(tracelist, {{ChildId, TrcPattern}, ?GOANNA_NOW()}).
 
 lookup([nodelist, Node]) ->
     ets:lookup(nodelist, Node);
-lookup([trc_pattern, ChildId, TracePattern]) ->
-    ets:lookup(tracelist, {ChildId, TracePattern});
-lookup([trc_pattern, Node, Cookie, TracePattern]) ->
+lookup([trc_pattern, ChildId, TrcPattern]) ->
+    ets:lookup(tracelist, {ChildId, TrcPattern});
+lookup([trc_pattern, Node, Cookie, TrcPattern]) ->
     ChildId = goanna_node_sup:id(Node, Cookie),
-    ets:lookup(tracelist, {ChildId, TracePattern});
+    ets:lookup(tracelist, {ChildId, TrcPattern});
 lookup([trace, Tbl, Key]) ->
     ets:lookup(Tbl, Key).
 
 delete_node(Node) ->
     ets:delete(nodelist, Node).
 
-delete_tracelist_pattern([Node, Cookie], TracePattern) ->
+delete_tracelist_pattern([Node, Cookie], TrcPattern) ->
     case lookup([trc_pattern, Node, Cookie]) of
         [] ->
             [];
         [{{Node, Cookie},TracePatterns}] ->
-            Updated=lists:delete(TracePattern, TracePatterns),
+            Updated=lists:delete(TrcPattern, TracePatterns),
             ets:insert(tracelist, {{Node, Cookie},Updated})
     end.
 
-truncate_tracelist([Node, Cookie]) ->
-    ets:delete(tracelist, {Node, Cookie}).
+truncate_tracelist([]) ->
+    ets:delete_all_objects(tracelist).
+
+truncate_traces(ChildId) ->
+    ets:delete_all_objects(ChildId).
