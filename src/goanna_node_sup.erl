@@ -49,7 +49,7 @@ delete_child(Node) ->
 init([SysConfNodes]) ->
     Children 
         = lists:map(fun([{node,Node},{cookie,Cookie},{type,Type}]) ->
-            {ok, NodeObj} = goanna_db:init_node([Node, Cookie, Type]),
+            NodeObj = {Node, Cookie, Type},
             ?CHILD(id(Node,Cookie), goanna_node, worker, [NodeObj])
         end, SysConfNodes),
     RestartStrategy = one_for_one,
