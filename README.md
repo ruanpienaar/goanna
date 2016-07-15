@@ -28,6 +28,7 @@
 2. custom trace_port client
 3. custom front end application to read ets tables, and format entries
 4. be able to work with short/long names in the erlang distribution
+5. Erlang version compatibility, currently only OTP 18+
 
 
 #setup
