@@ -6,7 +6,8 @@
     add_node/3,
     remove_node/1,
     nodes/0,
-    update_default_trace_options/1
+    update_default_trace_options/1,
+    set_push_interval/1
 ]).
 
 %% Trace Api
@@ -38,11 +39,12 @@ nodes() ->
 add_node(Node, Cookie, Type) when Type == erlang_distribution;
                                   Type == file;
                                   Type == tcpip_port ->
-	goanna_node_sup:start_child(Node, Cookie, Type).
+    goanna_node_sup:start_child(Node, Cookie, Type).
 
 remove_node(Node) ->
-	goanna_node_sup:delete_child(Node).
+    goanna_node_sup:delete_child(Node).
 
+-spec update_default_trace_options(list(tuple())) -> ok.
 update_default_trace_options(Opts) ->
     {ok, DefaultOpts} = application:get_env(goanna, default_trace_options),
     F = fun
@@ -55,27 +57,39 @@ update_default_trace_options(Opts) ->
     application:set_env(goanna, default_trace_options, NewDefaultOpts),
     cluster_foreach_call({update_state}).
 
+-spec set_push_interval(integer()) -> ok.
+set_push_interval(Interval) ->
+    application:set_env(goanna, push_interval, Interval).
+
+-spec trace(atom()) -> ok.
 trace(Module) ->
     cluster_foreach_call({trace, [{trc, #trc_pattern{m=Module}}]}).
 
+-spec trace(atom(), atom()) -> ok.
 trace(Module, Function) ->
     cluster_foreach_call({trace, [{trc, #trc_pattern{m=Module,f=Function}}]}).
 
+-spec trace(atom(), atom(), integer()) -> ok.
 trace(Module, Function, Arity) ->
     cluster_foreach_call({trace, [{trc, #trc_pattern{m=Module,f=Function,a=Arity}}]}).
 
+-spec trace(atom(), atom(), integer(), list()) -> ok.
 trace(Module, Function, Arity, Opts) ->
     cluster_foreach_call({trace, Opts++[{trc, #trc_pattern{m=Module,f=Function,a=Arity}}]}).
 
+-spec stop_trace() -> ok.
 stop_trace() ->
     cluster_foreach_call(stop_all_trace_patterns).
 
+-spec stop_trace(atom()) -> ok.
 stop_trace(Module) ->
     cluster_foreach_call({stop_trace, #trc_pattern{m=Module}}).
 
+-spec stop_trace(atom(), atom()) -> ok.
 stop_trace(Module, Function) ->
     cluster_foreach_call({stop_trace, #trc_pattern{m=Module,f=Function}}).
 
+-spec stop_trace(atom(), atom(), integer()) -> ok.
 stop_trace(Module, Function, Arity) ->
     cluster_foreach_call({stop_trace, #trc_pattern{m=Module,f=Function,a=Arity}}).
 
