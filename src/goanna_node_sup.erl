@@ -40,16 +40,17 @@ delete_child(Node) ->
         [] ->
             {error, no_such_node}
     end.
-    
+
 
 %% ===================================================================
 %% Supervisor callbacks
 %% ===================================================================
 
 init([SysConfNodes]) ->
-    Children 
+    Children
         = lists:map(fun([{node,Node},{cookie,Cookie},{type,Type}]) ->
-            NodeObj = {Node, Cookie, Type},
+            %% I'd like to keep the ets table's entries, even after restarts.
+            {ok, NodeObj} = goanna_db:init_node([Node, Cookie, Type]),
             ?CHILD(id(Node,Cookie), goanna_node, worker, [NodeObj])
         end, SysConfNodes),
     RestartStrategy = one_for_one,
