@@ -2,12 +2,12 @@
 
 %% Control Api
 -export([
-    start/0,
+    start/0, stop/0,
     add_node/3,
     remove_node/1,
     nodes/0,
     update_default_trace_options/1,
-    set_push_interval/1
+    set_data_retrival_method/1
 ]).
 
 %% Trace Api
@@ -21,28 +21,35 @@
 -include_lib("goanna.hrl").
 
 %%------------------------------------------------------------------------
-%% API
-
 %% Goanna start-up helper only
-start() ->
-    [
-        application:start(APP)
-        || APP <-
-        [asn1, crypto, public_key, ssl, compiler, inets, syntax_tools, sasl,
-         goldrush, lager, goanna]
-    ].
+start() -> [ application:start(APP) || APP <- apps() ].
+stop() -> [ application:start(APP) || APP <- lists:reverse(apps()) ].
+apps() ->
+    [asn1, crypto, public_key, ssl, compiler, inets, syntax_tools, sasl,
+         goldrush, lager, goanna].
+%%------------------------------------------------------------------------
 
+%%------------------------------------------------------------------------
+%% API
 nodes() ->
     [ChildId || {ChildId, _, _, _} <- supervisor:which_children(goanna_node_sup)].
 
--spec add_node(atom(), atom(), erlang_distribution | file | tcpip_port) -> {ok, pid()}.
-add_node(Node, Cookie, Type) when Type == erlang_distribution;
-                                  Type == file;
-                                  Type == tcpip_port ->
-    goanna_node_sup:start_child(Node, Cookie, Type).
+-spec add_node(node(), atom(), erlang_distribution | file | tcpip_port) ->
+        {ok, pid()} | {error,{already_started,pid()}}.
+add_node(Node, Cookie, Type) when is_atom(Node),
+                                  is_atom(Cookie),
+                                  (Type == erlang_distribution orelse
+                                   Type == file orelse
+                                   Type == tcpip_port) ->
+    goanna_node_sup:start_child(Node, Cookie, Type);
+add_node(_, _, _) ->
+    {error, badarg}.
 
-remove_node(Node) ->
-    goanna_node_sup:delete_child(Node).
+-spec remove_node(node()) -> ok | {error, no_such_node}.
+remove_node(Node) when is_atom(Node) ->
+    goanna_node_sup:delete_child(Node);
+remove_node(_) ->
+    {error, badarg}.
 
 -spec update_default_trace_options(list(tuple())) -> ok.
 update_default_trace_options(Opts) ->
@@ -57,9 +64,11 @@ update_default_trace_options(Opts) ->
     application:set_env(goanna, default_trace_options, NewDefaultOpts),
     cluster_foreach_call({update_state}).
 
--spec set_push_interval(integer()) -> ok.
-set_push_interval(Interval) ->
-    application:set_env(goanna, push_interval, Interval).
+%% TODO: create a separate call, for all the other sys.config app-env values...
+-spec set_data_retrival_method({push, non_neg_integer()} | pull) -> ok.
+set_data_retrival_method(DRM) ->
+    ok = application:set_env(goanna, data_retrival_method, DRM),
+    cluster_foreach_call({update_state}).
 
 -spec trace(atom()) -> ok.
 trace(Module) ->
@@ -127,6 +136,7 @@ call_node(Node, Cookie, Msg) ->
 %     ok.
 
 %%------------------------------------------------------------------------
+%% When receiving traces...
 recv_trace([trace, _ChildId], end_of_trace) ->
     %% TODO: MAYBE check if traces are disabled ??? on goanna_node?
     ok;

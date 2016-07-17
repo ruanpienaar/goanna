@@ -11,7 +11,7 @@ otp_release:
   - 18.0
   - 18.3
   - 19.0
-script: rebar compile && rebar skip_deps=true eunit && rebar skip_deps=true ct
+script: ./tests.sh
 env:
   global:
     - TIMEOUT=100

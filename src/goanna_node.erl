@@ -17,7 +17,7 @@
 -define(STATE, goanna_state).
 -record(?STATE, {node, cookie, type, child_id,
                  connected=false, connect_attempt_ref=undefined, connect_attemps=0,
-                 forward_callback_mod,
+                 forward_callback_mod, data_retrival_method :: {push, non_neg_integer()} | pull, push_pending,
                  trace_msg_count=0, trace_msg_total, trace_time, trace_timer_tref=false,
                  trace_active=false
                 }).
@@ -28,27 +28,56 @@ start_link({Node, Cookie, Type}) ->
 
 init({Node, Cookie, Type, ChildId}) ->
     false = process_flag(trap_exit, true),
-    State1 = app_env_to_state(#?STATE{}),
-    est_rem_conn(
-        State1#?STATE{
-            child_id=ChildId,
-            node=Node,
-            cookie=Cookie,
-            type=Type
-    }).
+    est_rem_conn(app_env_to_state(#?STATE{child_id=ChildId, node=Node, cookie=Cookie, type=Type})).
 %%------------------------------------------------------------------------
 %%---For updating the internal state of this gs---------------------------
 app_env_to_state(State) ->
     DefaultTraceOpts = application:get_env(goanna, default_trace_options, []),
-    TraceTime = default_or_new_option(time, DefaultTraceOpts, false),
-    MessageCount = default_or_new_option(messages, DefaultTraceOpts, false),
-    Mod = application:get_env(goanna, forward_callback_mod, false),
+    Mod = application:get_env(goanna, forward_callback_mod, undefined),
+    FMethod = application:get_env(goanna, data_retrival_method, pull),
+    TraceTime    = list_property_or_default(time, DefaultTraceOpts, false),
+    MessageCount = list_property_or_default(messages, DefaultTraceOpts, false),
     ok = check_forward_mod(Mod),
+    %% TODO: add some app env checks here...
     State#?STATE{trace_msg_total=MessageCount,
                  trace_time=TraceTime,
-                 forward_callback_mod=Mod
+                 forward_callback_mod=Mod,
+                 data_retrival_method=FMethod
     }.
+est_rem_conn(#?STATE{node=Node,
+                     cookie=Cookie,
+                     data_retrival_method=FMethod } = State) ->
+    case do_rem_conn(Node, Cookie) of
+        true ->
+            ok = do_monitor_node(Node, State#?STATE.connect_attempt_ref),
+            {ok, _} = trace_steps(Node, Cookie, State#?STATE.type),
+            {ok, reapply_traces(State#?STATE{
+                    connected=true,
+                    connect_attempt_ref = undefined,
+                    connect_attemps = 0,
+                    push_pending = handle_data_retrival_method(FMethod)
+                })
+            };
+        false ->
+            {ok, reconnect(State)}
+    end.
 
+do_rem_conn(Node, Cookie) ->
+    ((erlang:set_cookie(Node,Cookie)) andalso (net_kernel:connect(Node))).
+
+do_monitor_node(Node, ConnectAttemptTref) ->
+    true = erlang:monitor_node(Node, true),
+    ?NOTICE(" [~p] ~p !!! startup complete !!! \n", [?MODULE, Node]),
+    case ConnectAttemptTref of
+        undefined ->
+            ok;
+        TRef ->
+            {ok, cancel} = timer:cancel(TRef),
+            ok
+    end.
+
+%%------------------------------------------------------------------------
+%%--- Updating the internal state, based on app_env-----------------------
 handle_call({update_state}, _From, State) ->
     {reply, ok, app_env_to_state(State)};
 %%------------------------------------------------------------------------
@@ -63,8 +92,8 @@ handle_call({trace, Opts}, _From, #?STATE{child_id=ChildId,
     {NewReply, NewState} =
         case goanna_db:lookup([trc_pattern, ChildId, TrcPattern]) of
             [] ->
-                NewTraceMsgCount = default_or_new_option(messages, Opts, TraceMsgCount),
-                NewTraceTime = default_or_new_option(time, Opts, TraceTime),
+                NewTraceMsgCount = list_property_or_default(messages, Opts, TraceMsgCount),
+                NewTraceTime = list_property_or_default(time, Opts, TraceTime),
                 UpdatedOpts = lists:keystore(messages, 1, Opts, {messages, NewTraceMsgCount}),
                 UpdatedOpts2 = lists:keystore(time, 1, UpdatedOpts, {time, NewTraceTime}),
                 true = goanna_db:store([tracelist, ChildId], UpdatedOpts2),
@@ -148,10 +177,10 @@ handle_info(reconnect, #?STATE{node=Node} = State) ->
     {noreply, NewState};
 %%------------------------------------------------------------------------
 %%---Poll results, and forward upwards------------------------------------
-handle_info({push_data}, #?STATE{node=Node, cookie=Cookie, forward_callback_mod=Mod } = State) ->
-	ok = push_data(Mod, Node, Cookie),
-    forwarding(),
-	{noreply, State};
+handle_info({push_data}, #?STATE{node=Node, forward_callback_mod=Mod, child_id=Tbl} = State) ->
+    %% TODO: maybe add a batch size here...
+    push_data_loop(Mod, Tbl, Node),
+	{noreply, State#?STATE{push_pending = handle_data_retrival_method(State#?STATE.data_retrival_method)}};
 %%------------------------------------------------------------------------
 %% Handle Exists
 handle_info({'EXIT', From, done}, State) ->
@@ -181,32 +210,6 @@ terminate(Reason, #?STATE{ node=Node, cookie=Cookie } = _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
-%%------------------------------------------------------------------------
-est_rem_conn(#?STATE{ node=Node, cookie=Cookie, type=Type, child_id=ChildId } = State) ->
-    case do_rem_conn(Node, Cookie) of
-        true ->
-            do_monitor_node(Node, State#?STATE.connect_attempt_ref),
-            trace_steps(Node, Cookie, Type),
-            forwarding(),
-            {ok, reapply_traces(State#?STATE{
-                connected=true,
-                connect_attempt_ref = undefined,
-                connect_attemps = 0})
-            };
-        false ->
-            {ok, reconnect(State)}
-    end.
-
-do_rem_conn(Node, Cookie) ->
-    ((erlang:set_cookie(Node,Cookie)) andalso (net_kernel:connect(Node))).
-
-do_monitor_node(Node, ConnectAttemptTref) ->
-    true = erlang:monitor_node(Node, true),
-    case ConnectAttemptTref of
-        undefined -> ok;
-        TRef      -> {ok, cancel} = timer:cancel(TRef)
-    end,
-    ?NOTICE(" [~p] ~p !!! startup complete !!! \n", [?MODULE, Node]).
 %%------------------------------------------------------------------------
 %% TODO: maybe delete this child, when it cannot establish a connection
 %% after X amount of retries...
@@ -346,21 +349,13 @@ disable_tracing(Node, T=#trc_pattern{m=Module,f=Function,a=Arity}) ->
     ?DEBUG("[~p] [~p] dbg:ctpl MatchDesc ~p",
         [?MODULE, Node, MatchDesc]).
 %%------------------------------------------------------------------------
-%% TODO: add a batch size here...
-push_data(Mod, Node, Cookie) ->
-	Tbl=goanna_node_sup:id(Node, Cookie),
-	trace_results_loop(Mod, Tbl, Node).
+handle_data_retrival_method({push, Interval}) ->
+    PushTRef = erlang:send_after(Interval, self(), {push_data}),
+    _PendingPush=PushTRef;
+handle_data_retrival_method(pull) ->
+    _PendingPush=undefined.
 
-forwarding() ->
-    case application:get_env(goanna, push_interval) of
-        undefined ->
-            ?DEBUG("[~p] not pushing data, no interval setup.", [?MODULE]),
-            ok;
-        {ok, Interval} ->
-            erlang:send_after(Interval, self(), {push_data})
-    end.
-%%------------------------------------------------------------------------
-trace_results_loop(Mod, Tbl, Node) ->
+push_data_loop(Mod, Tbl, Node) ->
     First =
         try
             ets:first(Tbl)
@@ -369,16 +364,16 @@ trace_results_loop(Mod, Tbl, Node) ->
                 ?ALERT("ets:first got exception ~p ~p", [C, E]),
                 '$end_of_table'
         end,
-    trace_results_loop(Mod, Tbl, Node, First).
+    push_data_loop(Mod, Tbl, Node, First).
 
 %% TODO: Simplify, and abstract out, this simple db table walk
-trace_results_loop(_Mod, _Tbl, _Node, '$end_of_table') ->
+push_data_loop(_Mod, _Tbl, _Node, '$end_of_table') ->
     ok;
-trace_results_loop(Mod, Tbl, Node, Key) ->
+push_data_loop(Mod, Tbl, Node, Key) ->
     [E] = goanna_db:lookup([trace, Tbl, Key]),
     ok = Mod:forward(Tbl, E),
     true = ets:delete(Tbl, Key),
-    trace_results_loop(Mod, Tbl, Node, ets:next(Tbl, Key)).
+    push_data_loop(Mod, Tbl, Node, ets:next(Tbl, Key)).
 %%------------------------------------------------------------------------
 new_trace_timer(_ChildId, false, false) ->
     undefined;
@@ -405,7 +400,7 @@ cancel_timer(TRef) ->
             ok
     end.
 %%------------------------------------------------------------------------
-default_or_new_option(Field, Opts, Default) ->
+list_property_or_default(Field, Opts, Default) ->
     case lists:keyfind(Field, 1, Opts) of
         false          -> Default;
         {Field, Value} -> Value

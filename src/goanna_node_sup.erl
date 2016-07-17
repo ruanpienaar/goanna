@@ -29,7 +29,14 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, [application:get_env(goanna, nodes, [])]).
 
 start_child(Node, Cookie, Type) ->
-    supervisor:start_child(?MODULE, ?CHILD(id(Node,Cookie), goanna_node, worker, [{Node, Cookie, Type}])).
+    ChildId = id(Node,Cookie),
+    case whereis(ChildId) of
+        undefined ->
+            {ok, NodeObj} = goanna_db:init_node([Node, Cookie, Type]),
+            supervisor:start_child(?MODULE, ?CHILD(ChildId, goanna_node, worker, [NodeObj]));
+        ChildIdPid ->
+            {error,{already_started,ChildIdPid}}
+    end.
 
 delete_child(Node) ->
     case goanna_db:lookup([nodelist, Node]) of
@@ -45,19 +52,16 @@ delete_child(Node) ->
 %% ===================================================================
 %% Supervisor callbacks
 %% ===================================================================
-
-init([SysConfNodes]) ->
-    Children
-        = lists:map(fun([{node,Node},{cookie,Cookie},{type,Type}]) ->
-            %% I'd like to keep the ets table's entries, even after restarts.
-            {ok, NodeObj} = goanna_db:init_node([Node, Cookie, Type]),
-            ?CHILD(id(Node,Cookie), goanna_node, worker, [NodeObj])
-        end, SysConfNodes),
+init([SysConfNodes]) when is_list(SysConfNodes) ->
     RestartStrategy = one_for_one,
     MaxRestarts = 10000,
     MaxSecondsBetweenRestarts = 9600,
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
-    {ok, {SupFlags, Children}}.
+    {ok, {SupFlags, lists:map(fun([{node,Node},{cookie,Cookie},{type,Type}]) ->
+            %% I'd like to keep the ets table's entries, even after restarts.
+            {ok, NodeObj} = goanna_db:init_node([Node, Cookie, Type]),
+            ?CHILD(id(Node,Cookie), goanna_node, worker, [NodeObj])
+    end, SysConfNodes)}}.
 
 id(Node, Cookie) ->
     list_to_atom(atom_to_list(Node)++"_"++atom_to_list(Cookie)).
