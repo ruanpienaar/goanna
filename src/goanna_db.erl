@@ -6,6 +6,7 @@
           store/2,
           lookup/1,
           delete_node/1,
+          delete_child_id_tracelist/2,
           delete_tracelist_pattern/2,
           truncate_tracelist/1,
           truncate_traces/1
@@ -62,6 +63,10 @@ lookup([trace, Tbl, Key]) ->
 
 delete_node(Node) ->
     ets:delete(nodelist, Node).
+
+delete_child_id_tracelist(Node, Cookie) ->
+    ChildId = goanna_node_sup:id(Node, Cookie),
+    true = ets:match_delete(tracelist, {{ChildId, '_'}, '_'}).
 
 delete_tracelist_pattern([Node, Cookie], TrcPattern) ->
     case lookup([trc_pattern, Node, Cookie]) of

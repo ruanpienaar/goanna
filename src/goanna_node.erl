@@ -153,7 +153,8 @@ handle_call(stop_all_trace_patterns, _From, #?STATE{node=Node, cookie=Cookie, tr
     true = goanna_db:truncate_tracelist([]),
     {reply, ok, State#?STATE{
         trace_msg_count = 0,
-        trace_timer_tref = false
+        trace_timer_tref = false,
+        trace_active = false
     }};
 handle_call({clear_db_traces}, _From, #?STATE{child_id=ChildId} = State) ->
     true = goanna_db:truncate_traces(ChildId),
@@ -325,6 +326,7 @@ disable_all_tracing(Node, Cookie) ->
     %% Just make sure dbg, and tracer is always started..
     {ok, _RemoteDbgPid} = dbg_start(Node),
     [{Node, Cookie, Type}] = goanna_db:lookup([nodelist, Node]),
+    true = goanna_db:delete_child_id_tracelist(Node, Cookie),
     trace_steps(Node, Cookie, Type).
 %%------------------------------------------------------------------------
 disable_tracing(Node, []) ->

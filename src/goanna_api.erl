@@ -77,20 +77,28 @@ set_data_retrival_method(_) ->
     {error, badarg}.
 
 -spec trace(atom()) -> ok.
-trace(Module) ->
-    cluster_foreach_call({trace, [{trc, #trc_pattern{m=Module}}]}).
+trace(Module) when is_atom(Module) ->
+    cluster_foreach_call({trace, [{trc, #trc_pattern{m=Module}}]});
+trace(_) ->
+    {error, badarg}.
 
 -spec trace(atom(), atom()) -> ok.
-trace(Module, Function) ->
-    cluster_foreach_call({trace, [{trc, #trc_pattern{m=Module,f=Function}}]}).
+trace(Module, Function) when is_atom(Module), is_atom(Function) ->
+    cluster_foreach_call({trace, [{trc, #trc_pattern{m=Module,f=Function}}]});
+trace(_, _) ->
+    {error, badarg}.
 
 -spec trace(atom(), atom(), integer()) -> ok.
-trace(Module, Function, Arity) ->
-    cluster_foreach_call({trace, [{trc, #trc_pattern{m=Module,f=Function,a=Arity}}]}).
+trace(Module, Function, Arity) when is_atom(Module), is_atom(Function), is_integer(Arity) ->
+    cluster_foreach_call({trace, [{trc, #trc_pattern{m=Module,f=Function,a=Arity}}]});
+trace(_, _, _) ->
+    {error, badarg}.
 
 -spec trace(atom(), atom(), integer(), list()) -> ok.
-trace(Module, Function, Arity, Opts) ->
-    cluster_foreach_call({trace, Opts++[{trc, #trc_pattern{m=Module,f=Function,a=Arity}}]}).
+trace(Module, Function, Arity, Opts) when is_atom(Module), is_atom(Function), is_integer(Arity), is_list(Opts) ->
+    cluster_foreach_call({trace, Opts++[{trc, #trc_pattern{m=Module,f=Function,a=Arity}}]});
+trace(_,_,_,_) ->
+    {error, badarg}.
 
 -spec stop_trace() -> ok.
 stop_trace() ->
@@ -108,6 +116,7 @@ stop_trace(Module, Function) ->
 stop_trace(Module, Function, Arity) ->
     cluster_foreach_call({stop_trace, #trc_pattern{m=Module,f=Function,a=Arity}}).
 
+%%------------------------------------------------------------------------
 clear_all_traces() ->
     cluster_foreach_call({clear_db_traces}).
 
@@ -118,29 +127,11 @@ cluster_foreach_call(Msg) ->
         end, ets:tab2list(nodelist)
     ).
 
-% cluster_foreach_pidbang(Msg) ->
-%     lists:foreach(
-%         fun({Node, Cookie, _Type}) ->
-%             pidbang_node(Node, Cookie, Msg)
-%         end, ets:tab2list(nodelist)
-%     ).
-
-% pidbang_node(Node, Cookie, Msg) ->
-%     whereis(goanna_node_sup:id(Node, Cookie)) ! Msg.
-
-% call_node(ChildId, Msg) ->
-%     gen_server:call(ChildId, Msg).
-
 %% TODO: HANDLE TIMEOUT
 call_node(ChildId, Msg) ->
     gen_server:call(ChildId, Msg).
 call_node(Node, Cookie, Msg) ->
     gen_server:call(goanna_node_sup:id(Node, Cookie), Msg).
-
-% pidbang_trace_collector(Msg) ->
-%     whereis(goanna_trace_collector) ! Msg,
-%     ok.
-
 %%------------------------------------------------------------------------
 %% When receiving traces...
 recv_trace([trace, _ChildId], end_of_trace) ->

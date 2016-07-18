@@ -32,6 +32,14 @@ api_test_() ->
             fun set_data_retrival_method_validation/0}
         , {"API -> set_data_retrival_method/1 validation tests",
             fun set_data_retrival_method_validation/0}
+        , {"API -> trace tests",
+            fun trace/0}
+        , {"API -> trace_validation tests",
+            fun trace_validation/0}
+        , {"API -> stop_trace tests",
+            fun stop_trace/0}
+        , {"API -> stop_trace_validation tests",
+            fun stop_trace_validation/0}
      ]
     }.
 
@@ -242,6 +250,97 @@ set_data_retrival_method_validation() ->
     {error, badarg} = goanna_api:set_data_retrival_method({push, bla}),
 
     ok = goanna_api:remove_node(Node).
+
+trace() ->
+    %% THere should be no nodes, at first.
+    [] = goanna_api:nodes(),
+    {ok, Host} = inet:gethostname(),
+    Node = list_to_atom("tests@"++Host),
+    Cookie = cookie,
+    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++"_"++atom_to_list(Cookie)),
+
+    %% Add a node
+    {ok, GoannaNodePid} =
+        goanna_api:add_node(Node, cookie, erlang_distribution),
+    [GoannaNode_Cookie] = goanna_api:nodes(),
+
+    ok = goanna_api:trace(goanna_test_module, function),
+
+    %% Trace some
+    true = ([] == ets:tab2list(GoannaNode_Cookie)),
+    ok = goanna_test_module:function(),
+    timer:sleep(100), %% Wait at least 100Msec to retrieve the traces
+    true = ([] =/= ets:tab2list(GoannaNode_Cookie)),
+
+    ok = goanna_api:remove_node(Node).
+
+trace_validation() ->
+    %% THere should be no nodes, at first.
+    [] = goanna_api:nodes(),
+    {ok, Host} = inet:gethostname(),
+    Node = list_to_atom("tests@"++Host),
+    Cookie = cookie,
+    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++"_"++atom_to_list(Cookie)),
+
+    %% Add a node
+    {ok, GoannaNodePid} =
+        goanna_api:add_node(Node, cookie, erlang_distribution),
+    [GoannaNode_Cookie] = goanna_api:nodes(),
+
+    %% just trace some non-sense
+    {error, badarg} = goanna_api:trace(1),
+    {error, badarg} = goanna_api:trace("api"),
+    {error, badarg} = goanna_api:trace(1.1),
+    {error, badarg} = goanna_api:trace("api", 1),
+    {error, badarg} = goanna_api:trace(1, 1),
+    {error, badarg} = goanna_api:trace(1, 1, 1),
+    {error, badarg} = goanna_api:trace(1, 1, 1, 1),
+    {error, badarg} = goanna_api:trace(bla, bla, bla),
+    {error, badarg} = goanna_api:trace(bla, bla, bla, bla),
+
+    ok = goanna_api:remove_node(Node).
+
+stop_trace() ->
+    %% THere should be no nodes, at first.
+    [] = goanna_api:nodes(),
+    {ok, Host} = inet:gethostname(),
+    Node = list_to_atom("tests@"++Host),
+    Cookie = cookie,
+    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++"_"++atom_to_list(Cookie)),
+
+    %% Add a node
+    {ok, GoannaNodePid} =
+        goanna_api:add_node(Node, cookie, erlang_distribution),
+    [GoannaNode_Cookie] = goanna_api:nodes(),
+
+    ok = goanna_api:update_default_trace_options([{time, 1000}]),
+    ok = goanna_api:trace(goanna_test_module, function),
+
+    %% Change the default values, Then Check the newly set values
+    {ok,[{time, 1000}]} = application:get_env(goanna, default_trace_options),
+    GoannaState2 = sys:get_state(GoannaNode_Cookie),
+    #?GOANNA_STATE{ trace_msg_total=false,
+                    trace_time=1000 } = GoannaState2,
+
+    %% Trace some, set it for 1s and then stop
+    ok = goanna_test_module:function(),
+    timer:sleep(100), %% Wait at least 100Msec to retrieve the traces
+    true = ([] =/= ets:tab2list(GoannaNode_Cookie)),
+
+    %stop it
+    ok = goanna_api:stop_trace(),
+    [] = ets:tab2list(tracelist),
+    GoannaState3 = sys:get_state(GoannaNode_Cookie),
+    #?GOANNA_STATE{
+        trace_msg_count = 0,
+        trace_timer_tref = false,
+        trace_active = false
+    } = GoannaState3,
+
+    ok = goanna_api:remove_node(Node).
+
+stop_trace_validation() ->
+    ok.
 
 %%------------------------------------------------------------------------
 
