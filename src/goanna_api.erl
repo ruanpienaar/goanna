@@ -52,9 +52,11 @@ remove_node(_) ->
     {error, badarg}.
 
 -spec update_default_trace_options(list(tuple())) -> ok.
-update_default_trace_options(Opts) ->
-    {ok, DefaultOpts} = application:get_env(goanna, default_trace_options),
+update_default_trace_options(Opts) when is_list(Opts) ->
+    DefaultOpts = application:get_env(goanna, default_trace_options, []),
     F = fun
+        ({Field, false}, DefOpts) ->
+            lists:keydelete(Field, 1, DefOpts);
         ({time, Time}, DefOpts) when is_integer(Time) ->
             lists:keystore(time, 1, DefOpts, {time, Time});
         ({messages, Msgs}, DefOpts) when is_integer(Msgs) ->
@@ -62,13 +64,17 @@ update_default_trace_options(Opts) ->
     end,
     NewDefaultOpts = lists:foldl(F, DefaultOpts, Opts),
     application:set_env(goanna, default_trace_options, NewDefaultOpts),
-    cluster_foreach_call({update_state}).
+    cluster_foreach_call({update_state});
+update_default_trace_options(_) ->
+    {error, badarg}.
 
 %% TODO: create a separate call, for all the other sys.config app-env values...
 -spec set_data_retrival_method({push, non_neg_integer()} | pull) -> ok.
-set_data_retrival_method(DRM) ->
+set_data_retrival_method(DRM) when pull==DRM orelse (element(1,DRM)==push andalso 3==size(DRM)) ->
     ok = application:set_env(goanna, data_retrival_method, DRM),
-    cluster_foreach_call({update_state}).
+    cluster_foreach_call({update_state});
+set_data_retrival_method(_) ->
+    {error, badarg}.
 
 -spec trace(atom()) -> ok.
 trace(Module) ->

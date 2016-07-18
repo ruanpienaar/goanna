@@ -27,7 +27,12 @@ init_node([Node, Cookie, Type]) ->
     NodeObj = {Node, Cookie, Type},
     true = ets:insert(nodelist, NodeObj),
     ChildId = goanna_node_sup:id(Node, Cookie),
-    ChildId = ets:new(ChildId, [public, ordered_set, named_table]),
+    case ets:info(ChildId, size) of
+        undefined ->
+            ChildId = ets:new(ChildId, [public, ordered_set, named_table]);
+        Size when is_integer(Size) ->
+            ok
+    end,
     {ok, NodeObj}.
 
 node_table_exists(Node, Cookie) ->

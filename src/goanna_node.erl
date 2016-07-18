@@ -13,14 +13,7 @@
 ]).
 
 -include_lib("goanna.hrl").
-
--define(STATE, goanna_state).
--record(?STATE, {node, cookie, type, child_id,
-                 connected=false, connect_attempt_ref=undefined, connect_attemps=0,
-                 forward_callback_mod, data_retrival_method :: {push, non_neg_integer()} | pull, push_pending,
-                 trace_msg_count=0, trace_msg_total, trace_time, trace_timer_tref=false,
-                 trace_active=false
-                }).
+-define(STATE, ?GOANNA_STATE).
 %%------------------------------------------------------------------------
 start_link({Node, Cookie, Type}) ->
     ChildId = goanna_node_sup:id(Node, Cookie),
@@ -32,13 +25,19 @@ init({Node, Cookie, Type, ChildId}) ->
 %%------------------------------------------------------------------------
 %%---For updating the internal state of this gs---------------------------
 app_env_to_state(State) ->
-    DefaultTraceOpts = application:get_env(goanna, default_trace_options, []),
-    Mod = application:get_env(goanna, forward_callback_mod, undefined),
-    FMethod = application:get_env(goanna, data_retrival_method, pull),
-    TraceTime    = list_property_or_default(time, DefaultTraceOpts, false),
-    MessageCount = list_property_or_default(messages, DefaultTraceOpts, false),
-    ok = check_forward_mod(Mod),
     %% TODO: add some app env checks here...
+    DefaultTraceOpts = application:get_env(goanna, default_trace_options, []),
+    FMethod = application:get_env(goanna, data_retrival_method, pull),
+    Mod =
+        case FMethod of
+            {push, _, M} when M =/= undefined ->
+                ok = check_forward_mod(M),
+                M;
+            pull ->
+                undefined
+        end,
+    TraceTime = list_property_or_default(time, DefaultTraceOpts, false),
+    MessageCount = list_property_or_default(messages, DefaultTraceOpts, false),
     State#?STATE{trace_msg_total=MessageCount,
                  trace_time=TraceTime,
                  forward_callback_mod=Mod,
@@ -63,7 +62,7 @@ est_rem_conn(#?STATE{node=Node,
     end.
 
 do_rem_conn(Node, Cookie) ->
-    ((erlang:set_cookie(Node,Cookie)) andalso (net_kernel:connect(Node))).
+    ((erlang:set_cookie(Node,Cookie)) andalso (net_kernel:connect_node(Node))).
 
 do_monitor_node(Node, ConnectAttemptTref) ->
     true = erlang:monitor_node(Node, true),
@@ -106,7 +105,7 @@ handle_call({trace, Opts}, _From, #?STATE{child_id=ChildId,
                     trace_active = true
                  }
                 };
-            [{{ChildId, TrcPattern}, CreatedDatetime}] ->
+            [{{ChildId, TrcPattern}, _CreatedDatetime}] ->
                 {{error, {TrcPattern, already_tracing}},
                  State
                 }
@@ -177,13 +176,13 @@ handle_info(reconnect, #?STATE{node=Node} = State) ->
     {noreply, NewState};
 %%------------------------------------------------------------------------
 %%---Poll results, and forward upwards------------------------------------
-handle_info({push_data}, #?STATE{node=Node, forward_callback_mod=Mod, child_id=Tbl} = State) ->
+handle_info({push_data, Mod}, #?STATE{node=Node, forward_callback_mod=Mod, child_id=Tbl} = State) ->
     %% TODO: maybe add a batch size here...
     push_data_loop(Mod, Tbl, Node),
 	{noreply, State#?STATE{push_pending = handle_data_retrival_method(State#?STATE.data_retrival_method)}};
 %%------------------------------------------------------------------------
 %% Handle Exists
-handle_info({'EXIT', From, done}, State) ->
+handle_info({'EXIT', _From, done}, State) ->
     {noreply, State};
 handle_info({'EXIT', From, Reason}, State) when From == self() ->
     ?EMERGENCY("EXIT FROM - ~p - ~p", [From, Reason]),
@@ -198,7 +197,7 @@ handle_info({'EXIT', From, Reason}, State) ->
     {noreply, State};
 %%------------------------------------------------------------------------
 %%---Shoudn't happen, but hey... let's see ...----------------------------
-handle_info(Info, #?STATE{ node=Node, cookie=Cookie } = State) ->
+handle_info(Info, State) ->
     ?EMERGENCY("[~p] Unknown handle_info ~p~n~p", [?MODULE, Info, State]),
     {noreply, State}.
 
@@ -349,8 +348,8 @@ disable_tracing(Node, T=#trc_pattern{m=Module,f=Function,a=Arity}) ->
     ?DEBUG("[~p] [~p] dbg:ctpl MatchDesc ~p",
         [?MODULE, Node, MatchDesc]).
 %%------------------------------------------------------------------------
-handle_data_retrival_method({push, Interval}) ->
-    PushTRef = erlang:send_after(Interval, self(), {push_data}),
+handle_data_retrival_method({push, Interval, Mod}) ->
+    PushTRef = erlang:send_after(Interval, self(), {push_data, Mod}),
     _PendingPush=PushTRef;
 handle_data_retrival_method(pull) ->
     _PendingPush=undefined.
@@ -411,11 +410,12 @@ reapply_traces(#?STATE{node = Node,
                        trace_time=TraceTime} = State) ->
     TraceReapplyRes = [
         begin
+            %% TODO: check if the trace time is still valid: ! Created Timestamp
             {trc, TrcPattern} = lists:keyfind(trc, 1, Opts),
             ?CRITICAL("!!! re-tracing - ~p", [TrcPattern]),
             ok = enable_tracing(Node, TrcPattern)
         end
-    || {{C,Opts},Timestamp} <- ets:tab2list(tracelist), C =:=ChildId],
+    || {{C,Opts},_Timestamp} <- ets:tab2list(tracelist), C =:=ChildId],
     case TraceReapplyRes of
         [] ->
             State;
