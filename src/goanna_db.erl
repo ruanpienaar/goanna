@@ -9,7 +9,9 @@
           delete_child_id_tracelist/2,
           delete_tracelist_pattern/2,
           truncate_tracelist/1,
-          truncate_traces/1
+          truncate_traces/1,
+          pull/1,
+          pull/2
 ]).
 
 %% API
@@ -80,5 +82,39 @@ delete_tracelist_pattern([Node, Cookie], TrcPattern) ->
 truncate_tracelist([]) ->
     ets:delete_all_objects(tracelist).
 
-truncate_traces(ChildId) ->
-    ets:delete_all_objects(ChildId).
+truncate_traces(Tbl) ->
+    ets:delete_all_objects(Tbl).
+
+first(Tbl) ->
+	ets:first(Tbl).
+
+next(Tbl, Continuation) ->
+	ets:next(Tbl, Continuation).
+
+end_of_table() ->
+	'$end_of_table'.
+	
+lookup_entry(Tbl, Key) ->
+	ets:lookup(Tbl, Key).
+
+delete(Tbl, Key) ->
+	ets:delete(Tbl, Key).
+
+pull(Tbl) ->
+	pull(Tbl, 1).
+
+pull(Tbl, BatchSize) ->
+	End=end_of_table(),
+	case first(Tbl) of
+		End ->
+			[];
+		FirstKey ->
+			pull(Tbl, BatchSize, FirstKey, [])
+	end.
+	
+pull(_Tbl, BatchSize, _Key, R) when BatchSize =< 0 ->
+	lists:reverse(R);
+pull(Tbl, BatchSize, Key, R) when is_integer(BatchSize) ->
+	[Entry] = lookup_entry(Tbl, Key),
+	true = delete(Tbl, Key),		
+	pull(Tbl, BatchSize-1, next(Tbl,Key), [Entry|R]).
