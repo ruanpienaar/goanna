@@ -45,6 +45,8 @@ node_table_exists(Node, Cookie) ->
         S when is_integer(S) -> true
     end.
 
+store(ChildId, Trace) when is_atom(ChildId) ->
+	ets:insert(ChildId, Trace); 
 store([trace, ChildId], Trace) ->
     ets:insert(ChildId, {?GOANNA_NOW(),Trace});
 store([trace, Node, Cookie], Trace) ->
