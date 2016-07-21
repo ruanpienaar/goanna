@@ -113,10 +113,19 @@ pull(Tbl, BatchSize) ->
 		FirstKey ->
 			pull(Tbl, BatchSize, FirstKey, [])
 	end.
-	
+
+pull(Tbl, BatchSize, '$end_of_table', R) ->
+	lists:reverse(R);	
 pull(_Tbl, BatchSize, _Key, R) when BatchSize =< 0 ->
 	lists:reverse(R);
 pull(Tbl, BatchSize, Key, R) when is_integer(BatchSize) ->
-	[Entry] = lookup_entry(Tbl, Key),
+	case lookup_entry(Tbl, Key) of
+		[] ->
+			lists:reverse(R);
+		[Entry] ->
+			true = delete(Tbl, Key),
+			pull(Tbl, BatchSize-1, next(Tbl,Key), [Entry|R])			
+	end
 	true = delete(Tbl, Key),		
 	pull(Tbl, BatchSize-1, next(Tbl,Key), [Entry|R]).
+	
