@@ -34,7 +34,8 @@ init([]) ->
     MaxRestarts = 10000,
     MaxSecondsBetweenRestarts = 9600,
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
-    {ok, {SupFlags, [?CHILD(rrr, reloader, worker, []),
+    {ok, {SupFlags, [
+    				 %% ?CHILD(rrr, reloader, worker, []),
                      ?CHILD(gns, goanna_node_sup, supervisor, []),
                      ?CHILD(gtc, goanna_trace_collector, worker, [])
                     ]}}.
