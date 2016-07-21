@@ -124,8 +124,5 @@ pull(Tbl, BatchSize, Key, R) when is_integer(BatchSize) ->
 			lists:reverse(R);
 		[Entry] ->
 			true = delete(Tbl, Key),
-			pull(Tbl, BatchSize-1, next(Tbl,Key), [Entry|R])			
-	end
-	true = delete(Tbl, Key),		
-	pull(Tbl, BatchSize-1, next(Tbl,Key), [Entry|R]).
-	
+			pull(Tbl, BatchSize-1, next(Tbl,Key), [Entry|R])
+	end.
