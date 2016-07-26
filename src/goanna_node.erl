@@ -150,6 +150,10 @@ handle_call({trace_item, Trace}, _From, #?STATE{ node=Node,
                                        trace_timer_tref = false,
                                        trace_active = false
     }};
+handle_call({stop_trace, TrcPattern}, _From, #?STATE{ node = Node, cookie = Cookie } = State) ->
+    true = goanna_db:delete_child_id_tracelist(Node, Cookie),
+    ok = disable_tracing(Node, TrcPattern),
+	{reply, ok, State};
 handle_call(stop_all_trace_patterns, _From, #?STATE{node=Node, cookie=Cookie, trace_msg_count=TMC} = State) ->
     %% TODO: why is this crashing?
     ?DEBUG("Stop trace - Total Message Count:~p~n", [TMC]),
@@ -398,8 +402,12 @@ new_trace_timer(ChildId, NewTraceTime, {_,TRef}) ->
 
 cancel_timer(TRef) ->
     try
-        {ok, cancel} = timer:cancel(TRef),
-        ok
+        case timer:cancel(TRef) of
+            {error,badarg} ->
+                ok;
+            {ok, cancel} ->
+                ok
+        end
     catch
         C:E ->
             ?EMERGENCY("Could not clear timer: ~p ~p~n~p", [C,E,erlang:get_stacktrace()]),
