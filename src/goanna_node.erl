@@ -71,8 +71,13 @@ do_monitor_node(Node, ConnectAttemptTref) ->
         undefined ->
             ok;
         TRef ->
-            {ok, cancel} = timer:cancel(TRef),
-            ok
+	    	case timer:cancel(TRef) of
+	        %% Most likely already closed/timed-out...
+	        	{error, badarg} ->
+	            	ok;
+	            {ok, cancel} ->
+	            	ok
+	        end
     end.
 
 %%------------------------------------------------------------------------
