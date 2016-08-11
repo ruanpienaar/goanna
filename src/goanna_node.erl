@@ -40,7 +40,6 @@ app_env_to_state(State) ->
     MessageCount = list_property_or_default(messages, DefaultTraceOpts, false),
     State#?STATE{trace_msg_total=MessageCount,
                  trace_time=TraceTime,
-                 forward_callback_mod=Mod,
                  data_retrival_method=FMethod
     }.
 est_rem_conn(#?STATE{node=Node,
@@ -186,7 +185,7 @@ handle_info(reconnect, #?STATE{node=Node} = State) ->
     {noreply, NewState};
 %%------------------------------------------------------------------------
 %%---Poll results, and forward upwards------------------------------------
-handle_info({push_data, Mod}, #?STATE{node=Node, forward_callback_mod=Mod, child_id=Tbl} = State) ->
+handle_info({push_data, Mod}, #?STATE{node=Node, child_id=Tbl} = State) ->
     %% TODO: maybe add a batch size here...
     push_data_loop(Mod, Tbl, Node),
 	{noreply, State#?STATE{push_pending = handle_data_retrival_method(State#?STATE.data_retrival_method)}};
@@ -394,10 +393,10 @@ new_trace_timer(ChildId, NewTraceTime, false) ->
     ?WARNING("STOPPING traces after ~p Seconds", [NewTraceTime/1000]),
     {ok, TRef} = timer:apply_after(NewTraceTime, gen_server, call, [ChildId, stop_all_trace_patterns]),
     TRef;
-new_trace_timer(ChildId, NewTraceTime, {_,TRef}) ->
+new_trace_timer(ChildId, NewTraceTime, TRef) when is_reference(TRef) ->
     ok = cancel_timer(TRef),
     ?WARNING("STOPPING traces after ~p Seconds", [NewTraceTime/1000]),
-    {ok, TRef} = timer:apply_after(NewTraceTime, gen_server, call, [ChildId, stop_all_trace_patterns]),
+    {ok, NewTRef} = timer:apply_after(NewTraceTime, gen_server, call, [ChildId, stop_all_trace_patterns]),
     TRef.
 
 cancel_timer(TRef) ->
@@ -452,7 +451,7 @@ check_forward_mod(Mod) ->
         true ->
             ok;
         false ->
-            ?EMERGENCY("[~p] forward_callback_mod ~p missing required behaviour functions...halting...",
+            ?EMERGENCY("[~p] Forwarding callback module ~p missing required behaviour functions...halting...",
                 [?MODULE, Mod]),
             erlang:halt(1),
             ok
