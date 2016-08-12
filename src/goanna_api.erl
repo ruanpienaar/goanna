@@ -41,7 +41,7 @@ add_node(Node, Cookie, Type) when is_atom(Node),
                                   (Type == erlang_distribution orelse
                                    Type == file orelse
                                    Type == tcpip_port) ->
-    ok = gen_server:call(goanna_node_manager, {start_child, Node, Cookie, Type}, infinity);
+    gen_server:call(goanna_node_manager, {start_child, Node, Cookie, Type}, infinity);
 add_node(_, _, _) ->
     {error, badarg}.
 
