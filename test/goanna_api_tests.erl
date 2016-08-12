@@ -18,6 +18,8 @@ api_test_() ->
             fun goanna_api_nodes/0}
         , {"API -> add_node/3",
             fun goanna_api_add_node/0}
+        , {"API -> add_node_cannot_connect/3",
+            fun goanna_api_add_node_cannot_connect/0}
         , {"API -> add_node/3 validation tests",
             fun goanna_api_add_node_validation/0}
         , {"API -> remove_node/1",
@@ -44,11 +46,11 @@ api_test_() ->
     }.
 
 goanna_api_nodes() ->
-    %% THere should be no nodes, at first.
+    %% There should be no nodes, at first.
     [] = goanna_api:nodes().
 
 goanna_api_add_node() ->
-    %% THere should be no nodes, at first.
+    %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
     {ok, Host} = inet:gethostname(),
     Node = list_to_atom("tests@"++Host),
@@ -68,8 +70,26 @@ goanna_api_add_node() ->
     %% removing it
     ok = goanna_api:remove_node(Node).
 
+goanna_api_add_node_cannot_connect() ->
+    ok = application:set_env(goanna, max_reconnecion_attempts, 3),
+
+    %% There should be no nodes, at first.
+    [] = goanna_api:nodes(),
+    FakeGoannaNode_Cookie = 'blabla@blahost_blacookie',
+
+    %% Adding it
+    {ok, GoannaNodePid} =
+        goanna_api:add_node(FakeGoannaNode_Cookie, cookie, erlang_distribution),
+    [GoannaNode_Cookie] = goanna_api:nodes(),
+
+    %% wait for 3*50ms attempts...
+    timer:sleep(200),
+
+    %% Node should now have been removed...
+    [] = goanna_api:nodes().
+
 goanna_api_add_node_validation() ->
-    %% THere should be no nodes, at first.
+    %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
     %% Invalid data:
      {error, badarg} = goanna_api:add_node(1, 2, 3),
@@ -78,7 +98,7 @@ goanna_api_add_node_validation() ->
      {error, badarg} = goanna_api:add_node(atom, atom, fakeone).
 
 remove_node() ->
-    %% THere should be no nodes, at first.
+    %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
     {ok, Host} = inet:gethostname(),
     Node = list_to_atom("tests@"++Host),
@@ -96,13 +116,13 @@ remove_node() ->
 
 
 remove_node_validation() ->
-    %% THere should be no nodes, at first.
+    %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
     {error, badarg} = goanna_api:remove_node(12345),
     {error, badarg} = goanna_api:remove_node("other").
 
 update_default_trace_options() ->
-    %% THere should be no nodes, at first.
+    %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
     {ok, Host} = inet:gethostname(),
     Node = list_to_atom("tests@"++Host),
@@ -163,7 +183,7 @@ update_default_trace_options_validation() ->
     {error, badarg} = goanna_api:update_default_trace_options(222.22),
     {error, badarg} = goanna_api:update_default_trace_options({blee, blaa}),
 
-    %% THere should be no nodes, at first.
+    %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
     {ok, Host} = inet:gethostname(),
     Node = list_to_atom("tests@"++Host),
@@ -195,7 +215,7 @@ update_default_trace_options_validation() ->
     ok = goanna_api:remove_node(Node).
 
 set_data_retrival_method() ->
-    %% THere should be no nodes, at first.
+    %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
     {ok, Host} = inet:gethostname(),
     Node = list_to_atom("tests@"++Host),
@@ -231,7 +251,7 @@ set_data_retrival_method() ->
 
 
 set_data_retrival_method_validation() ->
-    %% THere should be no nodes, at first.
+    %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
     {ok, Host} = inet:gethostname(),
     Node = list_to_atom("tests@"++Host),
@@ -252,7 +272,7 @@ set_data_retrival_method_validation() ->
     ok = goanna_api:remove_node(Node).
 
 trace() ->
-    %% THere should be no nodes, at first.
+    %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
     {ok, Host} = inet:gethostname(),
     Node = list_to_atom("tests@"++Host),
@@ -275,7 +295,7 @@ trace() ->
     ok = goanna_api:remove_node(Node).
 
 trace_validation() ->
-    %% THere should be no nodes, at first.
+    %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
     {ok, Host} = inet:gethostname(),
     Node = list_to_atom("tests@"++Host),
@@ -301,7 +321,7 @@ trace_validation() ->
     ok = goanna_api:remove_node(Node).
 
 stop_trace() ->
-    %% THere should be no nodes, at first.
+    %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
     {ok, Host} = inet:gethostname(),
     Node = list_to_atom("tests@"++Host),
