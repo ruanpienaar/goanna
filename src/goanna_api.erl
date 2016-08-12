@@ -22,7 +22,7 @@
 
 %%------------------------------------------------------------------------
 %% Goanna start-up helper only
-start() -> [ application:start(APP) || APP <- apps() ].
+start() -> [ ok = application:start(APP) || APP <- apps() ].
 stop() -> [ application:start(APP) || APP <- lists:reverse(apps()) ].
 apps() ->
     [asn1, crypto, public_key, ssl, compiler, inets, syntax_tools, sasl,

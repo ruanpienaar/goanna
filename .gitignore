@@ -10,3 +10,4 @@ Mnesia*
 .rebar/
 log/
 .eunit/
+goanna
