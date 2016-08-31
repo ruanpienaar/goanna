@@ -24,6 +24,7 @@ init({Node, Cookie, Type, ChildId}) ->
     est_rem_conn(app_env_to_state(#?STATE{child_id=ChildId, node=Node, cookie=Cookie, type=Type})).
 %%------------------------------------------------------------------------
 %%---For updating the internal state of this gs---------------------------
+-spec app_env_to_state( #?STATE{} ) -> #?STATE{}.
 app_env_to_state(State) ->
     %% TODO: add some app env checks here...
     DefaultTraceOpts = application:get_env(goanna, default_trace_options, []),
@@ -44,6 +45,8 @@ app_env_to_state(State) ->
                  data_retrival_method=FMethod,
                  max_reconnecion_attempts=MaxConnAttempts
     }.
+    
+-spec est_rem_conn(#?STATE{}) -> {ok, #?STATE{}}.
 est_rem_conn(#?STATE{node=Node,
                      cookie=Cookie,
                      data_retrival_method=FMethod } = State) ->
@@ -227,6 +230,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%------------------------------------------------------------------------
 %% TODO: maybe delete this child, when it cannot establish a connection
 %% after X amount of retries...
+-spec reconnect(#?STATE{}) -> #?STATE{}.
 reconnect(#?STATE{ connect_attempts = Attempts, max_reconnecion_attempts = Max } = State) when Attempts >= Max ->
     ?INFO("Too many connection attempts, removing node ~p", [State#?STATE.node]),
     spawn(fun() -> goanna_api:remove_node(State#?STATE.node) end),
@@ -307,8 +311,6 @@ handler_fun(Node, Cookie, tcpip_port) ->
     {ok, fun(Trace, _) ->
         ok=goanna_api:recv_trace([trace, goanna_node_sup:id(Node,Cookie)],Trace)
     end};
-handler_fun(_Node, _Cookie, file) ->
-    {ok, undefined};
 handler_fun(Node, Cookie, erlang_distribution) ->
     FunStr = lists:flatten(io_lib:format(
         "fun(Trace, _) ->"
@@ -386,6 +388,7 @@ disable_tracing(Node, T=#trc_pattern{m=Module,f=Function,a=Arity}) ->
                 [?MODULE, Node, MatchDesc])
     end.
 %%------------------------------------------------------------------------
+-spec handle_data_retrival_method({push, non_neg_integer(), atom()} | pull) -> reference() | undefined.
 handle_data_retrival_method({push, Interval, Mod}) ->
     PushTRef = erlang:send_after(Interval, self(), {push_data, Mod}),
     _PendingPush=PushTRef;
@@ -441,12 +444,14 @@ cancel_timer(TRef) ->
             ok
     end.
 %%------------------------------------------------------------------------
+-spec list_property_or_default(term(), proplists:proplist(), term()) -> term().
 list_property_or_default(Field, Opts, Default) ->
     case lists:keyfind(Field, 1, Opts) of
         false          -> Default;
         {Field, Value} -> Value
     end.
 
+-spec reapply_traces(#?STATE{}) -> #?STATE{}.
 reapply_traces(#?STATE{node = Node,
                        child_id=ChildId,
                        trace_time=TraceTime} = State) ->
@@ -468,6 +473,7 @@ reapply_traces(#?STATE{node = Node,
             }
     end.
 
+-spec check_forward_mod(undefined | atom()) -> ok.
 check_forward_mod(undefined) ->
     ok;
 check_forward_mod(Mod) ->

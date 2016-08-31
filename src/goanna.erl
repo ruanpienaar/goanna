@@ -2,7 +2,7 @@
 -export([main/1,
          forward/2
          ]).
-%%! -smp enable -sname goanna_script -hidden -setcookie goanna -config sys.config
+%%! -smp disable +A 1 -sname goanna_script -hidden -setcookie goanna -config sys.config
 
 -mode(compile).
 
@@ -24,7 +24,7 @@ main([]) ->
     % ]),
 
 
-    {ok,_} = net_kernel:start([somename]),
+    {ok,_} = net_kernel:start([somename, shortnames]),
     goanna_api:start(),
 
     % {data_retrival_method, {push, 250, goanna_shell_printer}}
@@ -78,12 +78,15 @@ traces([H|T]) ->
     Module = check_lookup_value(module, H),
     case lists:keyfind(function, 1, H) of
         false ->
+        	io:format("Trace ~p", [{Module}]),
             ok = goanna_api:trace(Module);
         {function, Function} ->
             case lists:keyfind(arity, 1, H) of
                 false ->
+                	io:format("Trace ~p", [{Module, Function}]),
                     ok = goanna_api:trace(Module, Function);
                 {arity, Arity} ->
+                	io:format("Trace ~p", [{Module, Function, Arity}]),
                     ok = goanna_api:trace(Module, Function, Arity)
             end
     end,
