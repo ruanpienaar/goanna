@@ -7,34 +7,11 @@
 -mode(compile).
 
 main([]) ->
-
-    %% No Args flow
     %% FOLLOW the below if no arguments were given....
-
-    % io:format("init args ~p~n", [init:get_arguments()]),
-    % io:format("Args ~p~n", [Args]),
-    % io:format("~p~n", [file:list_dir(".")]).
-
     {ok, [Terms]} = file:consult("sys.config"),
-    % ok = application:set_env(lager, log_root, "log/"),
-    % ok = application:set_env(lager, handlers, [
-    %     {lager_console_backend, debug},
-    %     {lager_file_backend, [{file, "error.log"}, {level, error}]},
-    %     {lager_file_backend, [{file, "console.log"}, {level, info}]}
-    % ]),
-
-
-    {ok,_} = net_kernel:start([somename, shortnames]),
+    {ok,_} = net_kernel:start([somename]),
     goanna_api:start(),
-
-    % {data_retrival_method, {push, 250, goanna_shell_printer}}
-    application:set_env(goanna, data_retrival_method, {push, 250, ?MODULE}),
-
-    % io:format("~n ~p ~n", [application:get_all_env(lager)]),
-
-
-
-    % io:format("~p~n", [Terms]).
+    ok = application:set_env(goanna, data_retrival_method, {push, 250, ?MODULE}),
     {goanna, GoannaConfig} = lists:keyfind(goanna, 1, Terms),
     case check_lookup_value(nodes, GoannaConfig) of
         [] ->
@@ -50,9 +27,8 @@ main([]) ->
                     traces(Traces)
             end
     end,
-
-
     infinite_loop().
+    % Also a way of starting a shell, from escript..
     % shell:start(),
     % timer:sleep(infinity).
 
