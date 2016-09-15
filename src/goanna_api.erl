@@ -193,9 +193,16 @@ list_active_traces() ->
 pull_all_traces() ->
     Nodes = ?MODULE:nodes(),
     F = fun(ChildId, Acc) ->
-        [pull_traces(ChildId)|Acc]
+	case pull_traces(ChildId) of
+	  [] ->
+		Acc;
+	  Traces ->
+		%% TODO: add node, so that the FE can know 
+		%% Which traces was for what...
+		[Traces|Acc]
+	end
     end,
-    lists:foldl(F, [], Nodes).
+    lists:flatten(lists:foldl(F, [], Nodes)).
 
 pull_traces(ChildId) ->
     goanna_db:pull(ChildId, 50).
