@@ -15,7 +15,13 @@
     trace/1, trace/2, trace/3, trace/4,
     stop_trace/0, stop_trace/1, stop_trace/2, stop_trace/3,
     clear_all_traces/0,
-    recv_trace/2
+    recv_trace/2,
+    list_active_traces/0
+]).
+
+%% Traces
+-export([
+    pull_all_traces/0
 ]).
 
 -include_lib("goanna.hrl").
@@ -179,3 +185,22 @@ recv_trace([trace, _ChildId], Trace={drop, _NumberOfDroppedItems}) ->
     % call_node(ChildId, {trace_item, Trace});
     ?EMERGENCY("! Trace Message ~p not implemented yet !", [Trace]),
     ok.
+
+list_active_traces() ->
+    ets:tab2list(tracelist).
+
+
+pull_all_traces() ->
+    Nodes = ?MODULE:nodes(),
+    F = fun(ChildId, Acc) ->
+        [pull_traces(ChildId)|Acc]
+    end,
+    lists:foldl(F, [], Nodes).
+
+pull_traces(ChildId) ->
+    goanna_db:pull(ChildId, 50).
+    
+    
+
+
+
