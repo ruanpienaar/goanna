@@ -88,7 +88,7 @@ set_data_retrival_method(DRM=pull) ->
     cluster_foreach_call({update_state});
 set_data_retrival_method(DRM={push, _Interval, _Mod}) ->
 	ok = application:set_env(goanna, data_retrival_method, DRM),
-	cluster_foreach_call({update_state}); 
+	cluster_foreach_call({update_state});
 set_data_retrival_method(_) ->
     {error, badarg}.
 
@@ -184,6 +184,8 @@ recv_trace([trace, _ChildId], Trace={drop, _NumberOfDroppedItems}) ->
     % pidbang_trace_collector({trace_item, ChildId, Trace}).
     % call_node(ChildId, {trace_item, Trace});
     ?EMERGENCY("! Trace Message ~p not implemented yet !", [Trace]),
+    ok;
+recv_trace(_, _) ->
     ok.
 
 list_active_traces() ->
@@ -197,7 +199,7 @@ pull_all_traces() ->
 	  [] ->
 		Acc;
 	  Traces ->
-		%% TODO: add node, so that the FE can know 
+		%% TODO: add node, so that the FE can know
 		%% Which traces was for what...
 		[Traces|Acc]
 	end
@@ -206,8 +208,8 @@ pull_all_traces() ->
 
 pull_traces(ChildId) ->
     goanna_db:pull(ChildId, 50).
-    
-    
+
+
 
 
 

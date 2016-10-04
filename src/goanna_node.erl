@@ -45,7 +45,7 @@ app_env_to_state(State) ->
                  data_retrival_method=FMethod,
                  max_reconnecion_attempts=MaxConnAttempts
     }.
-    
+
 -spec est_rem_conn(#?STATE{}) -> {ok, #?STATE{}}.
 est_rem_conn(#?STATE{node=Node,
                      cookie=Cookie,
@@ -122,6 +122,21 @@ handle_call({trace, Opts}, _From, #?STATE{child_id=ChildId,
     {reply, NewReply, NewState};
 %%------------------------------------------------------------------------
 %%---Deal with message counts---------------------------------------------
+
+
+
+% {trace_item,{trace,<49872.1258.0>,call,{ets,first,[timer_tab]},{timer,timer_timeout,1}}}
+% #goanna_state{node = 'p1@pi1.cluster',cookie = pasture,
+%               type = tcpip_port,child_id = 'p1@pi1.cluster_pasture',
+%               connected = true,connect_attempt_ref = undefined,
+%               connect_attempts = 0,max_reconnecion_attempts = 10,
+%               forward_callback_mod = undefined,
+%               data_retrival_method = pull,push_pending = undefined,
+%               trace_msg_count = 100,trace_msg_total = 100,
+%               trace_time = false,trace_timer_tref = undefined,
+%               trace_active = true}
+
+
 handle_call({trace_item, _}, _From, #?STATE{ trace_active=false } = State) ->
     {reply, ok, State};
 handle_call({trace_item, Trace}, _From, #?STATE{ trace_msg_count=TMC,
@@ -145,8 +160,7 @@ handle_call({trace_item, Trace}, _From, #?STATE{ node=Node,
                                                  trace_msg_count=TMC,
                                                  trace_msg_total=TMT,
                                                  trace_active=true,
-                                                 connected=Connected } = State) when (TMC-1) >= TMT ->
-                                                 % -1, to store last one...
+                                                 connected=Connected } = State) when TMC >= TMT ->
     % ?DEBUG("[~p] [~p] Trace message count limit reached...", [?MODULE, Node]),
     true=goanna_db:store([trace, State#?STATE.child_id], Trace),
     {ok,_} = disable_all_tracing(Connected, Node, Cookie),
@@ -306,16 +320,28 @@ dbg_start(Node) ->
             {ok, undefined}
     end.
 
+%% TODO: implement file..
 %% TODO: how would i stop the remote tracing, if goanna, dies... ?
 handler_fun(Node, Cookie, tcpip_port) ->
     {ok, fun(Trace, _) ->
-        ok=goanna_api:recv_trace([trace, goanna_node_sup:id(Node,Cookie)],Trace)
+        case goanna_api:recv_trace([trace, goanna_node_sup:id(Node,Cookie)],Trace) of
+            ok ->
+                ok;
+            stop_tracing ->
+                ok
+        end
     end};
 handler_fun(Node, Cookie, erlang_distribution) ->
     FunStr = lists:flatten(io_lib:format(
+        % "fun(Trace, _) -> "
+        % "  case rpc:call(~p, goanna_api, recv_trace, [[trace,~p],Trace]) of "
+        % "    ok -> ok; "
+        % "    stop_tracing -> ok "
+        % "  end "
+        % "end."
         "fun(Trace, _) ->"
-        " ok=rpc:call(~p, goanna_api, recv_trace, [[trace,~p],Trace]) "
-        "end.", [node(), goanna_node_sup:id(Node,Cookie)])),
+        " erlang:display(Trace) "
+        "end.", [])),
     {ok, Tokens, _} = erl_scan:string(FunStr),
     {ok,[Form]} = erl_parse:parse_exprs(Tokens),
     Bindings = erl_eval:add_binding('B', 2, erl_eval:new_bindings()),
