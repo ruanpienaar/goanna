@@ -195,9 +195,8 @@ handle_info(reconnect, #?STATE{node=Node} = State) ->
 %%------------------------------------------------------------------------
 %%---Poll results, and forward upwards------------------------------------
 handle_info({push_data, Mod}, #?STATE{node=Node, child_id=Tbl} = State) ->
-    %% TODO: maybe add a batch size here...
     push_data_loop(Mod, Tbl, Node),
-	{noreply, State#?STATE{push_pending = handle_data_retrival_method(State#?STATE.data_retrival_method)}};
+    {noreply, State#?STATE{push_pending = handle_data_retrival_method(State#?STATE.data_retrival_method)}};
 %%------------------------------------------------------------------------
 %% Handle Exists
 handle_info({'EXIT', _From, done}, State) ->
