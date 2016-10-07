@@ -318,15 +318,12 @@ handler_fun(Node, Cookie, tcpip_port) ->
     end};
 handler_fun(Node, Cookie, erlang_distribution) ->
     FunStr = lists:flatten(io_lib:format(
-        % "fun(Trace, _) -> "
-        % "  case rpc:call(~p, goanna_api, recv_trace, [[trace,~p],Trace]) of "
-        % "    ok -> ok; "
-        % "    stop_tracing -> ok "
-        % "  end "
-        % "end."
-        "fun(Trace, _) ->"
-        " erlang:display(Trace) "
-        "end.", [])),
+        "fun(Trace, _) -> "
+        "  case rpc:call(~p, goanna_api, recv_trace, [[trace,~p],Trace]) of "
+        "    ok -> ok; "
+        "    stop_tracing -> ok "
+        "  end "
+        "end.", [node(), goanna_node_sup:id(Node,Cookie)])),
     {ok, Tokens, _} = erl_scan:string(FunStr),
     {ok,[Form]} = erl_parse:parse_exprs(Tokens),
     Bindings = erl_eval:add_binding('B', 2, erl_eval:new_bindings()),
@@ -435,11 +432,11 @@ new_trace_timer(ChildId, NewTraceTime, false) ->
     ?WARNING("STOPPING traces after ~p Seconds", [NewTraceTime/1000]),
     {ok, TRef} = timer:apply_after(NewTraceTime, gen_server, call, [ChildId, stop_all_trace_patterns]),
     TRef;
-new_trace_timer(ChildId, NewTraceTime, TRef) when is_reference(TRef) ->
+new_trace_timer(ChildId, NewTraceTime, {_, TRef}) when is_reference(TRef) ->
     ok = cancel_timer(TRef),
     ?WARNING("STOPPING traces after ~p Seconds", [NewTraceTime/1000]),
     {ok, NewTRef} = timer:apply_after(NewTraceTime, gen_server, call, [ChildId, stop_all_trace_patterns]),
-    TRef.
+    NewTRef.
 
 cancel_timer(TRef) ->
     try

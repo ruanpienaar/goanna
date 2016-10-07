@@ -282,12 +282,13 @@ trace() ->
     [GoannaNode_Cookie] = goanna_api:nodes(),
 
     ok = goanna_api:trace(goanna_test_module, function),
+    ok = goanna_api:trace(ets, i),
 
     %% Trace some
     true = ([] == ets:tab2list(GoannaNode_Cookie)),
     ok = goanna_test_module:function(),
     timer:sleep(100), %% Wait at least 100Msec to retrieve the traces
-    true = ([] =/= ets:tab2list(GoannaNode_Cookie)),
+    ?assert([] =/= ets:tab2list(GoannaNode_Cookie)),
 
     ok = goanna_api:remove_node(Node).
 
@@ -342,7 +343,7 @@ stop_trace() ->
     %% Trace some, set it for 1s and then stop
     ok = goanna_test_module:function(),
     timer:sleep(100), %% Wait at least 100Msec to retrieve the traces
-    true = ([] =/= ets:tab2list(GoannaNode_Cookie)),
+    ?assert([] =/= ets:tab2list(GoannaNode_Cookie)),
 
     %stop it
     ok = goanna_api:stop_trace(),
@@ -390,8 +391,8 @@ cleanup(_) ->
                 CurrNode
         end.
 
-    stop_distrib()->
-        net_kernel:stop().
+stop_distrib()->
+    net_kernel:stop().
 
 forward(TraceMessage) ->
     ok.

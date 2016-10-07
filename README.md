@@ -48,5 +48,5 @@ To run this library stand-alone, just
 Edit the sys.config, add nodes to automatically connect to, traces to be
 immediately applied, and trace options for all future traces.
 ```bash
-./start-dev.sh.
+$ ./start-dev.sh
 ```
