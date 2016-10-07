@@ -34,7 +34,7 @@
 -record(?GOANNA_STATE,
     {node, cookie, type, child_id,
      connected=false, connect_attempt_ref=undefined, connect_attempts=0, max_reconnecion_attempts=0,
-     forward_callback_mod, data_retrival_method=pull :: {push, non_neg_integer(), atom()} | pull, push_pending,
+     data_retrival_method=pull :: {push, non_neg_integer(), atom()} | pull, push_pending,
      trace_msg_count=0, trace_msg_total, trace_time, trace_timer_tref=false,
      trace_active=false
     }).

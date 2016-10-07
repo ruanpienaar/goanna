@@ -123,20 +123,6 @@ handle_call({trace, Opts}, _From, #?STATE{child_id=ChildId,
 %%------------------------------------------------------------------------
 %%---Deal with message counts---------------------------------------------
 
-
-
-% {trace_item,{trace,<49872.1258.0>,call,{ets,first,[timer_tab]},{timer,timer_timeout,1}}}
-% #goanna_state{node = 'p1@pi1.cluster',cookie = pasture,
-%               type = tcpip_port,child_id = 'p1@pi1.cluster_pasture',
-%               connected = true,connect_attempt_ref = undefined,
-%               connect_attempts = 0,max_reconnecion_attempts = 10,
-%               forward_callback_mod = undefined,
-%               data_retrival_method = pull,push_pending = undefined,
-%               trace_msg_count = 100,trace_msg_total = 100,
-%               trace_time = false,trace_timer_tref = undefined,
-%               trace_active = true}
-
-
 handle_call({trace_item, _}, _From, #?STATE{ trace_active=false } = State) ->
     {reply, ok, State};
 handle_call({trace_item, Trace}, _From, #?STATE{ trace_msg_count=TMC,

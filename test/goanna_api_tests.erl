@@ -230,22 +230,19 @@ set_data_retrival_method() ->
     %% Check defaults:
     {ok,pull} = application:get_env(goanna, data_retrival_method),
     GoannaState = sys:get_state(GoannaNode_Cookie),
-    #?GOANNA_STATE{ data_retrival_method = pull,
-                    forward_callback_mod = undefined } = GoannaState,
+    #?GOANNA_STATE{ data_retrival_method = pull } = GoannaState,
 
     %% THen set the new data retrival method:
     ok = goanna_api:set_data_retrival_method(pull),
     {ok,pull} = application:get_env(goanna, data_retrival_method),
     GoannaState = sys:get_state(GoannaNode_Cookie),
-    #?GOANNA_STATE{ data_retrival_method = pull,
-                    forward_callback_mod = undefined } = GoannaState,
+    #?GOANNA_STATE{ data_retrival_method = pull } = GoannaState,
 
     %% THen set Push:
     ok = goanna_api:set_data_retrival_method({push, 100, ?MODULE}),
     {ok,{push, 100, ?MODULE}} = application:get_env(goanna, data_retrival_method),
     GoannaState = sys:get_state(GoannaNode_Cookie),
-    #?GOANNA_STATE{ data_retrival_method = {push, 100, ?MODULE},
-                    forward_callback_mod = ?MODULE } = GoannaState,
+    #?GOANNA_STATE{ data_retrival_method = {push, 100, ?MODULE} } = GoannaState,
 
     ok = goanna_api:remove_node(Node).
 
