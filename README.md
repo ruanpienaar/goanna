@@ -24,35 +24,29 @@
 ###### the curent implementation handles noraml erlang RPC distribution, and trace_port.
 
 #Roadmap
-1. escriptify
+1. escriptify ( Only need to use getopt, for cmdline options, editing sys.config and starting it works )
 2. custom trace_port client
-3. custom front end application to read ets tables, and format entries
 4. be able to work with short/long names in the erlang distribution
-5. Erlang version compatibility, currently only OTP 18+
+5. Erlang version compatibility, currently only OTP 18+ ( time calls )
+6. file trace needs to be implemented
 
-
-#setup
+# Setup
 edit the sys.config, here's example of the application config:
-```Erlang
+```erlang
  {goanna,[
-    {nodes, [
-        % [{node,   NodeName},
-        %  {cookie, Cookie},
-        %  {type,   Type}]   %% tcpipo_port | file | erlang_distribution
-
-        [{node,'node1@host'},
-         {cookie, cookie},
-         {type, tcpip_port}
-        ],
-
-        [{node,'node2@host'},
-         {cookie, cookie},
-         {type, tcpip_port}
+    {nodes,[
+        [{node,   NodeName},
+         {cookie, Cookie},
+         {type,   Type}]   %% tcpipo_port | file | erlang_distribution
         ]
     ]}
  ]}
 ```
 
-## usage
-To run this library stand-alone, just edit the sys.config, and ./start-dev.sh.
-My later intetion is to use this library application, as part of another bigger piece of work.
+## Usage
+To run this library stand-alone, just 
+Edit the sys.config, add nodes to automatically connect to, traces to be
+immediately applied, and trace options for all future traces.
+```bash
+./start-dev.sh.
+```
