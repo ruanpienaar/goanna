@@ -5,7 +5,17 @@
   {registered, []},
   {applications, [
                   kernel,
-                  stdlib
+                  stdlib,
+                  asn1,
+                  crypto,
+                  public_key,
+                  ssl,
+                  compiler,
+                  inets,
+                  syntax_tools,
+                  sasl,
+                  goldrush,
+                  lager
                  ]},
   {mod, { goanna_app, []}},
   {env, []}
