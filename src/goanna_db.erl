@@ -45,14 +45,14 @@ node_table_exists(Node, Cookie) ->
     end.
 
 store(ChildId, Trace) when is_atom(ChildId) ->
-	ets:insert(ChildId, Trace); 
+	ets:insert(ChildId, Trace);
 store([trace, ChildId], Trace) ->
     ets:insert(ChildId, {?GOANNA_NOW(),Trace});
 store([trace, Node, Cookie], Trace) ->
     ChildId = goanna_node_sup:id(Node, Cookie),
     ets:insert(ChildId, {?GOANNA_NOW(),Trace});
-store([tracelist, ChildId], TrcPattern) ->
-    ets:insert(tracelist, {{ChildId, TrcPattern}, ?GOANNA_NOW()}).
+store([tracelist, ChildId, TrcPattern], Opts) ->
+    ets:insert(tracelist, {{ChildId, TrcPattern}, ?GOANNA_NOW(), Opts}).
 
 lookup([nodelist, Node]) ->
     ets:lookup(nodelist, Node);
@@ -85,7 +85,7 @@ next(Tbl, Continuation) ->
 
 end_of_table() ->
 	'$end_of_table'.
-	
+
 lookup_entry(Tbl, Key) ->
 	ets:lookup(Tbl, Key).
 
@@ -105,7 +105,7 @@ pull(Tbl, BatchSize) ->
 	end.
 
 pull(Tbl, BatchSize, '$end_of_table', R) ->
-	lists:reverse(R);	
+	lists:reverse(R);
 pull(_Tbl, BatchSize, _Key, R) when BatchSize =< 0 ->
 	lists:reverse(R);
 pull(Tbl, BatchSize, Key, R) when is_integer(BatchSize) ->

@@ -13,6 +13,7 @@
 %% Trace Api
 -export([
     trace/1, trace/2, trace/3, trace/4,
+    trace_modules/1,
     stop_trace/0, stop_trace/1, stop_trace/2, stop_trace/3,
     clear_all_traces/0,
     recv_trace/2,
@@ -92,29 +93,44 @@ set_data_retrival_method(DRM={push, _Interval, _Mod}) ->
 set_data_retrival_method(_) ->
     {error, badarg}.
 
+
 -spec trace(atom()) -> ok.
 trace(Module) when is_atom(Module) ->
-    cluster_foreach_call({trace, [{trc, #trc_pattern{m=Module}}]});
+    cluster_foreach_call({trace, [], [#trc_pattern{m=Module}]});
 trace(_) ->
     {error, badarg}.
 
 -spec trace(atom(), atom()) -> ok.
 trace(Module, Function) when is_atom(Module), is_atom(Function) ->
-    cluster_foreach_call({trace, [{trc, #trc_pattern{m=Module,f=Function}}]});
+    cluster_foreach_call({trace, [], [#trc_pattern{m=Module,f=Function}]});
 trace(_, _) ->
     {error, badarg}.
 
 -spec trace(atom(), atom(), integer()) -> ok.
 trace(Module, Function, Arity) when is_atom(Module), is_atom(Function), is_integer(Arity) ->
-    cluster_foreach_call({trace, [{trc, #trc_pattern{m=Module,f=Function,a=Arity}}]});
+    cluster_foreach_call({trace, [], [#trc_pattern{m=Module,f=Function,a=Arity}]});
 trace(_, _, _) ->
     {error, badarg}.
 
 -spec trace(atom(), atom(), integer(), list()) -> ok.
 trace(Module, Function, Arity, Opts) when is_atom(Module), is_atom(Function), is_integer(Arity), is_list(Opts) ->
-    cluster_foreach_call({trace, Opts++[{trc, #trc_pattern{m=Module,f=Function,a=Arity}}]});
+    cluster_foreach_call({trace, Opts, [#trc_pattern{m=Module,f=Function,a=Arity}]});
 trace(_,_,_,_) ->
     {error, badarg}.
+
+-spec trace_modules(list( atom() )) -> ok.
+trace_modules(Modules) ->
+    trace_modules(Modules, [{time, false}, {messages, false}]).
+
+-spec trace_modules(list(), list()) -> ok.
+trace_modules(Modules, Opts) ->
+    cluster_foreach_call({trace, Opts, [ #trc_pattern{m=M} || M <- Modules,
+        %% TODO: build some safetynet...
+        ( M /= erlang orelse
+          M /= lists orelse
+          M /= io )
+    ]}).
+
 
 -spec stop_trace() -> ok.
 stop_trace() ->

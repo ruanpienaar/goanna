@@ -84,42 +84,49 @@ do_monitor_node(Node, ConnectAttemptTref) ->
 	        end
     end.
 
+
+trace(ChildId, [], _, _) ->
+    ok;
+trace(ChildId, [H|T], UpdatedOpts2, Node) ->
+    %% TODO: how to report, already traced...
+    _ = trace(ChildId, H, UpdatedOpts2, Node),
+    trace(ChildId, T, UpdatedOpts2, Node);
+trace(ChildId, TrcPattern, UpdatedOpts2, Node) ->
+    case goanna_db:lookup([trc_pattern, ChildId, TrcPattern]) of
+        [] ->
+            true = goanna_db:store([tracelist, ChildId, TrcPattern], UpdatedOpts2),
+            enable_tracing(Node, TrcPattern);
+        [{{ChildId, TrcPattern}, _CreatedDatetime, _Opts}] ->
+            {error, {TrcPattern, already_tracing}}
+    end.
+
 %%------------------------------------------------------------------------
 %%--- Updating the internal state, based on app_env-----------------------
 handle_call({update_state}, _From, State) ->
     {reply, ok, app_env_to_state(State)};
 %%------------------------------------------------------------------------
 %%---Tracing--------------------------------------------------------------
-handle_call({trace, Opts}, _From, #?STATE{child_id=ChildId,
-                                          node=Node,
-                                          trace_msg_total=TraceMsgCount,
-                                          trace_time=TraceTime,
-                                          trace_timer_tref=TraceTimerTRef
-                                          } = State) ->
-    {trc, TrcPattern} = lists:keyfind(trc, 1, Opts),
-    {NewReply, NewState} =
-        case goanna_db:lookup([trc_pattern, ChildId, TrcPattern]) of
-            [] ->
-                NewTraceMsgCount = list_property_or_default(messages, Opts, TraceMsgCount),
-                NewTraceTime = list_property_or_default(time, Opts, TraceTime),
-                UpdatedOpts = lists:keystore(messages, 1, Opts, {messages, NewTraceMsgCount}),
-                UpdatedOpts2 = lists:keystore(time, 1, UpdatedOpts, {time, NewTraceTime}),
-                true = goanna_db:store([tracelist, ChildId], UpdatedOpts2),
-                ok = enable_tracing(Node, TrcPattern),
-                {ok,
-                 State#?STATE{
-                    trace_msg_total=NewTraceMsgCount,
-                    trace_time=NewTraceTime,
-                    trace_timer_tref = new_trace_timer(ChildId, NewTraceTime, TraceTimerTRef),
-                    trace_active = true
-                 }
-                };
-            [{{ChildId, TrcPattern}, _CreatedDatetime}] ->
-                {{error, {TrcPattern, already_tracing}},
-                 State
-                }
-        end,
-    {reply, NewReply, NewState};
+handle_call({trace, Opts, TrcPatterns}, _From, #?STATE{child_id=ChildId,
+                                                      node=Node,
+                                                      trace_msg_total=TraceMsgCount,
+                                                      trace_time=TraceTime,
+                                                      trace_timer_tref=TraceTimerTRef } = State) ->
+    NewTraceMsgCount = list_property_or_default(messages, Opts, TraceMsgCount),
+    NewTraceTime = list_property_or_default(time, Opts, TraceTime),
+    UpdatedOpts = lists:keystore(messages, 1, Opts, {messages, NewTraceMsgCount}),
+    UpdatedOpts2 = lists:keystore(time, 1, UpdatedOpts, {time, NewTraceTime}),
+
+    %% TODO: Handle already traced...
+    ok = trace(ChildId, TrcPatterns, UpdatedOpts2, Node),
+    {ok,_} = dbg_p(Node),
+    {reply, ok,
+        State#?STATE{
+            trace_msg_total=NewTraceMsgCount,
+            trace_time=NewTraceTime,
+            trace_timer_tref = new_trace_timer(ChildId, NewTraceTime, TraceTimerTRef),
+            trace_active = true
+        }
+    };
 %%------------------------------------------------------------------------
 %%---Deal with message counts---------------------------------------------
 
@@ -459,6 +466,7 @@ list_property_or_default(Field, Opts, Default) ->
         {Field, Value} -> Value
     end.
 
+%% TODO: Fix re-apply traces... i changed the tracelist
 -spec reapply_traces(#?STATE{}) -> #?STATE{}.
 reapply_traces(#?STATE{node = Node,
                        child_id=ChildId,
@@ -466,11 +474,11 @@ reapply_traces(#?STATE{node = Node,
     TraceReapplyRes = [
         begin
             %% TODO: check if the trace time is still valid: ! Created Timestamp
-            {trc, TrcPattern} = lists:keyfind(trc, 1, Opts),
+            % {trc, TrcPattern} = lists:keyfind(trc, 1, Opts),
             ?CRITICAL("!!! re-tracing - ~p", [TrcPattern]),
             ok = enable_tracing(Node, TrcPattern)
         end
-    || {{C,Opts},_Timestamp} <- ets:tab2list(tracelist), C =:=ChildId],
+    || {{C, TrcPattern},_Timestamp, _Opts} <- ets:tab2list(tracelist), C =:=ChildId],
     case TraceReapplyRes of
         [] ->
             State;
@@ -493,7 +501,8 @@ check_forward_mod(Mod) ->
         true ->
             ok;
         false ->
-            ?EMERGENCY("[~p] Forwarding callback module ~p missing required behaviour functions...halting...",
+            ?EMERGENCY("[~p] Forwarding callback module ~p
+                missing required behaviour functions...halting...",
                 [?MODULE, Mod]),
             erlang:halt(1),
             ok
