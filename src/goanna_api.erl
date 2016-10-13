@@ -59,6 +59,9 @@ add_node(Node, Cookie, Type) when is_atom(Node),
 add_node(_, _, _) ->
     {error, badarg}.
 
+add_node_sync(Node, Cookie, Type) ->
+    gen_server:call(goanna_node_manager, {start_child_sync, Node, Cookie, Type}, infinity).
+
 -spec remove_node(node()) -> ok | {error, no_such_node}.
 remove_node(Node) when is_atom(Node) ->
     goanna_node_sup:delete_child(Node);
@@ -124,7 +127,7 @@ trace_modules(Modules) ->
 
 -spec trace_modules(list(), list()) -> ok.
 trace_modules(Modules, Opts) ->
-    cluster_foreach_call({trace, Opts, [ #trc_pattern{m=M} || M <- Modules,
+    cluster_foreach_call_infinity({trace, Opts, [ #trc_pattern{m=M} || M <- Modules,
         %% TODO: build some safetynet...
         ( M /= erlang orelse
           M /= lists orelse
@@ -158,12 +161,23 @@ cluster_foreach_call(Msg) ->
             call_node(Node, Cookie, Msg)
         end, ets:tab2list(nodelist)
     ).
+    
+cluster_foreach_call_infinity(Msg) ->
+    lists:foreach(
+        fun({Node, Cookie, _Type}) ->
+            call_node_infinity(Node, Cookie, Msg)
+        end, ets:tab2list(nodelist)
+    ).
 
-%% TODO: HANDLE TIMEOUT
+%% TODO: HANDLE TIMEOUT, 
+%% TODO: make default infinity, and top level has timeouts.....
 call_node(ChildId, Msg) ->
     gen_server:call(ChildId, Msg).
 call_node(Node, Cookie, Msg) ->
     gen_server:call(goanna_node_sup:id(Node, Cookie), Msg).
+    
+call_node_infinity(Node, Cookie, Msg) ->
+    gen_server:call(goanna_node_sup:id(Node, Cookie), Msg, infinity).
 %%------------------------------------------------------------------------
 %% When receiving traces...
 recv_trace([trace, _ChildId], end_of_trace) ->
