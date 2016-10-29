@@ -55,17 +55,17 @@ goanna_api_add_node() ->
     {ok, Host} = inet:gethostname(),
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
-    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++"_"++atom_to_list(Cookie)),
+    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++?NODE_COOKIE_SEP++atom_to_list(Cookie)),
 
     %% Adding it
     {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    [GoannaNode_Cookie] = goanna_api:nodes(),
+    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     %% Adding a duplicate
     {error,{already_started,GoannaNodePid}} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    [GoannaNode_Cookie] = goanna_api:nodes(),
+    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     %% removing it
     ok = goanna_api:remove_node(Node).
@@ -80,7 +80,7 @@ goanna_api_add_node_cannot_connect() ->
     %% Adding it
     {ok, GoannaNodePid} =
         goanna_api:add_node(FakeGoannaNode_Cookie, cookie, erlang_distribution),
-    [GoannaNode_Cookie] = goanna_api:nodes(),
+    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     %% wait for 3*50ms attempts...
     timer:sleep(200),
@@ -103,7 +103,7 @@ remove_node() ->
     {ok, Host} = inet:gethostname(),
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
-    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++"_"++atom_to_list(Cookie)),
+    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++?NODE_COOKIE_SEP++atom_to_list(Cookie)),
 
     %% Try removing a unknown node:
     {error, no_such_node} = goanna_api:remove_node('fake@nohost'),
@@ -111,7 +111,7 @@ remove_node() ->
     %% Add, and then remove a known node:
     {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    [GoannaNode_Cookie] = goanna_api:nodes(),
+    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
     ok = goanna_api:remove_node(Node).
 
 
@@ -127,12 +127,12 @@ update_default_trace_options() ->
     {ok, Host} = inet:gethostname(),
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
-    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++"_"++atom_to_list(Cookie)),
+    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++?NODE_COOKIE_SEP++atom_to_list(Cookie)),
 
     %% Add a node
     {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    [GoannaNode_Cookie] = goanna_api:nodes(),
+    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     %% Then get the default values
     undefined = application:get_env(goanna, default_trace_options),
@@ -188,12 +188,12 @@ update_default_trace_options_validation() ->
     {ok, Host} = inet:gethostname(),
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
-    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++"_"++atom_to_list(Cookie)),
+    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++?NODE_COOKIE_SEP++atom_to_list(Cookie)),
 
     %% Add a node
     {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    [GoannaNode_Cookie] = goanna_api:nodes(),
+    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     %% Change the default values, Then Check the newly set values
     ok = goanna_api:update_default_trace_options([{time, 1000}]),
@@ -220,12 +220,12 @@ set_data_retrival_method() ->
     {ok, Host} = inet:gethostname(),
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
-    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++"_"++atom_to_list(Cookie)),
+    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++?NODE_COOKIE_SEP++atom_to_list(Cookie)),
 
     %% Add a node
     {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    [GoannaNode_Cookie] = goanna_api:nodes(),
+    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     %% Check defaults:
     {ok,pull} = application:get_env(goanna, data_retrival_method),
@@ -253,12 +253,12 @@ set_data_retrival_method_validation() ->
     {ok, Host} = inet:gethostname(),
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
-    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++"_"++atom_to_list(Cookie)),
+    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++?NODE_COOKIE_SEP++atom_to_list(Cookie)),
 
     %% Add a node
     {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    [GoannaNode_Cookie] = goanna_api:nodes(),
+    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     %% Try and set something invalid:
     {error, badarg} = goanna_api:set_data_retrival_method(1234),
@@ -274,12 +274,12 @@ trace() ->
     {ok, Host} = inet:gethostname(),
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
-    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++"_"++atom_to_list(Cookie)),
+    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++?NODE_COOKIE_SEP++atom_to_list(Cookie)),
 
     %% Add a node
     {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    [GoannaNode_Cookie] = goanna_api:nodes(),
+    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     ok = goanna_api:trace(goanna_test_module, function),
     ok = goanna_api:trace(ets, i),
@@ -298,12 +298,12 @@ trace_validation() ->
     {ok, Host} = inet:gethostname(),
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
-    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++"_"++atom_to_list(Cookie)),
+    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++?NODE_COOKIE_SEP++atom_to_list(Cookie)),
 
     %% Add a node
     {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    [GoannaNode_Cookie] = goanna_api:nodes(),
+    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     %% just trace some non-sense
     {error, badarg} = goanna_api:trace(1),
@@ -324,12 +324,12 @@ stop_trace() ->
     {ok, Host} = inet:gethostname(),
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
-    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++"_"++atom_to_list(Cookie)),
+    GoannaNode_Cookie = list_to_atom(atom_to_list(Node)++?NODE_COOKIE_SEP++atom_to_list(Cookie)),
 
     %% Add a node
     {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    [GoannaNode_Cookie] = goanna_api:nodes(),
+    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     ok = goanna_api:update_default_trace_options([{time, 1000}]),
     ok = goanna_api:trace(goanna_test_module, function),

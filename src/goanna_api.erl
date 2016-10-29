@@ -37,7 +37,7 @@ start() -> [ begin
             ok
     end
 end || APP <- apps() ].
-stop() -> [ application:start(APP) || APP <- lists:reverse(apps()) ].
+stop() -> [ ok = application:ensure_started(APP) || APP <- lists:reverse(apps()) ].
 apps() ->
     [asn1, crypto, public_key, ssl, compiler, inets, syntax_tools, sasl,
          goldrush, lager, goanna].
@@ -45,8 +45,17 @@ apps() ->
 
 %%------------------------------------------------------------------------
 %% API
+-spec nodes() -> list(proplists:proplist()).
 nodes() ->
-    [ChildId || {ChildId, _, _, _} <- supervisor:which_children(goanna_node_sup)].
+    NodeChildren =
+        [goanna_node_sup:to_node(ChildId)
+            || {ChildId, _, _, _}
+            <- supervisor:which_children(goanna_node_sup)],
+    lists:filter(
+        fun({Node,Cookie,Type}) ->
+            lists:member([Node, Cookie], NodeChildren)
+        end, goanna_db:nodes()
+    ).
 
 -spec add_node(node(), atom(), erlang_distribution | file | tcpip_port) ->
         {ok, pid()} | {error,{already_started,pid()}}.
@@ -161,7 +170,7 @@ cluster_foreach_call(Msg) ->
             call_node(Node, Cookie, Msg)
         end, ets:tab2list(nodelist)
     ).
-    
+
 cluster_foreach_call_infinity(Msg) ->
     lists:foreach(
         fun({Node, Cookie, _Type}) ->
@@ -169,13 +178,13 @@ cluster_foreach_call_infinity(Msg) ->
         end, ets:tab2list(nodelist)
     ).
 
-%% TODO: HANDLE TIMEOUT, 
+%% TODO: HANDLE TIMEOUT,
 %% TODO: make default infinity, and top level has timeouts.....
 call_node(ChildId, Msg) ->
     gen_server:call(ChildId, Msg).
 call_node(Node, Cookie, Msg) ->
     gen_server:call(goanna_node_sup:id(Node, Cookie), Msg).
-    
+
 call_node_infinity(Node, Cookie, Msg) ->
     gen_server:call(goanna_node_sup:id(Node, Cookie), Msg, infinity).
 %%------------------------------------------------------------------------

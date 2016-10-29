@@ -3,6 +3,7 @@
           init/0,
           init_node/1,
           node_table_exists/2,
+          nodes/0,
           store/2,
           lookup/1,
           delete_node/1,
@@ -43,6 +44,9 @@ node_table_exists(Node, Cookie) ->
         undefined            -> false;
         S when is_integer(S) -> true
     end.
+
+nodes() ->
+    ets:tab2list(nodelist).
 
 store(ChildId, Trace) when is_atom(ChildId) ->
 	ets:insert(ChildId, Trace);

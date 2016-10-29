@@ -10,7 +10,7 @@
 
 %% Supervisor callbacks
 -export([init/1]).
--export([id/2]).
+-export([id/2, to_node/1]).
 
 -include_lib("goanna.hrl").
 
@@ -74,4 +74,8 @@ init([SysConfNodes]) when is_list(SysConfNodes) ->
     end, SysConfNodes)}}.
 
 id(Node, Cookie) ->
-    list_to_atom(atom_to_list(Node)++"_"++atom_to_list(Cookie)).
+    list_to_atom(atom_to_list(Node)++?NODE_COOKIE_SEP++atom_to_list(Cookie)).
+
+to_node(ChildId) when is_atom(ChildId) ->
+    [Node, Cookie] = string:tokens(atom_to_list(ChildId), ?NODE_COOKIE_SEP),
+    [list_to_atom(Node), list_to_atom(Cookie)].
