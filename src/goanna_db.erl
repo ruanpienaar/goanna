@@ -108,7 +108,7 @@ pull(Tbl, BatchSize) ->
 			pull(Tbl, BatchSize, FirstKey, [])
 	end.
 
-pull(Tbl, BatchSize, '$end_of_table', R) ->
+pull(_Tbl, _BatchSize, '$end_of_table', R) ->
 	lists:reverse(R);
 pull(_Tbl, BatchSize, _Key, R) when BatchSize =< 0 ->
 	lists:reverse(R);

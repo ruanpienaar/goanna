@@ -4,6 +4,7 @@
 -export([
     start/0, stop/0,
     add_node/3,
+    add_node_sync/3,
     remove_node/1,
     nodes/0,
     update_default_trace_options/1,
@@ -29,14 +30,7 @@
 
 %%------------------------------------------------------------------------
 %% Goanna start-up helper only
-start() -> [ begin
-    case application:start(APP) of
-        ok ->
-            ok;
-        {error,{already_started, App}} ->
-            ok
-    end
-end || APP <- apps() ].
+start() -> [ ok = application:ensure_started(APP) || APP <- apps() ].
 stop() -> [ ok = application:ensure_started(APP) || APP <- lists:reverse(apps()) ].
 apps() ->
     [asn1, crypto, public_key, ssl, compiler, inets, syntax_tools, sasl,
@@ -52,7 +46,7 @@ nodes() ->
             || {ChildId, _, _, _}
             <- supervisor:which_children(goanna_node_sup)],
     lists:filter(
-        fun({Node,Cookie,Type}) ->
+        fun({Node,Cookie,_Type}) ->
             lists:member([Node, Cookie], NodeChildren)
         end, goanna_db:nodes()
     ).
@@ -100,8 +94,8 @@ set_data_retrival_method(DRM=pull) ->
     ok = application:set_env(goanna, data_retrival_method, DRM),
     cluster_foreach_call({update_state});
 set_data_retrival_method(DRM={push, _Interval, _Mod}) ->
-	ok = application:set_env(goanna, data_retrival_method, DRM),
-	cluster_foreach_call({update_state});
+    ok = application:set_env(goanna, data_retrival_method, DRM),
+    cluster_foreach_call({update_state});
 set_data_retrival_method(_) ->
     {error, badarg}.
 
@@ -233,15 +227,15 @@ list_active_traces() ->
 
 pull_all_traces() ->
     Nodes = ?MODULE:nodes(),
-    F = fun(ChildId, Acc) ->
-	case pull_traces(ChildId) of
-	  [] ->
-		Acc;
-	  Traces ->
-		%% TODO: add node, so that the FE can know
-		%% Which traces was for what...
-		[Traces|Acc]
-	end
+    F = fun({Node,Cookie,_}, Acc) ->
+        case pull_traces(goanna_node_sup:id(Node,Cookie)) of
+          [] ->
+            Acc;
+          Traces ->
+            %% TODO: add node, so that the FE can know
+            %% Which traces was for what...
+            [Traces|Acc]
+        end
     end,
     lists:flatten(lists:foldl(F, [], Nodes)).
 

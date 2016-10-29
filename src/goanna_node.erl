@@ -33,14 +33,13 @@ init({Node, Cookie, Type, ChildId}) ->
 app_env_to_state(State) ->
     %% TODO: add some app env checks here...
     DefaultTraceOpts = application:get_env(goanna, default_trace_options, []),
-    FMethod = application:get_env(goanna, data_retrival_method, pull),
-    Mod =
-        case FMethod of
-            {push, _, M} when M =/= undefined ->
+    FMethod =
+        case application:get_env(goanna, data_retrival_method, pull) of
+            F={push, _, M} when M =/= undefined ->
                 ok = check_forward_mod(M),
-                M;
+                F;
             pull ->
-                undefined
+                pull
         end,
     TraceTime = list_property_or_default(time, DefaultTraceOpts, false),
     MessageCount = list_property_or_default(messages, DefaultTraceOpts, false),
@@ -90,7 +89,7 @@ do_monitor_node(Node, ConnectAttemptTref) ->
     end.
 
 
-trace(ChildId, [], _, _) ->
+trace(_ChildId, [], _, _) ->
     ok;
 trace(ChildId, [H|T], UpdatedOpts2, Node) ->
     %% TODO: how to report, already traced...

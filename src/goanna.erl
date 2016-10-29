@@ -79,7 +79,7 @@ infinite_loop() ->
     timer:sleep(1000),
     infinite_loop().
 
-forward(Tbl, {Now, TraceItem}) ->
+forward(_Tbl, {_Now, TraceItem}) ->
     io:format(standard_io, "~p~n", [format_trace_item(TraceItem)]).
 
 format_trace_item(Trace={trace, _Pid, _Label, _Info}) ->

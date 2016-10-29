@@ -1,6 +1,8 @@
 language: erlang
 notifications:
-  email: ruan800@gmail.cmo
+  email: ruan800@gmail.com
+before_script:
+  kerl list installations
 otp_release:
   - 18.0
   - 18.1
@@ -8,7 +10,8 @@ otp_release:
   - 18.2.1
   - 18.3
   - 19.0
-script: rebar clean && rebar compile && rebar skip_deps=true eunit && rebar skip_deps=true ct
+script:
+  rebar clean && rebar compile && rebar skip_deps=true eunit && rebar skip_deps=true ct
 env:
   global:
     - TIMEOUT=100
