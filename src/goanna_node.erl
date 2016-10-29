@@ -4,7 +4,7 @@
 
 -export([
     start_link/1,
-    init/1,
+    init/1, init/2,
     handle_call/3,
     handle_cast/2,
     handle_info/2,
@@ -18,6 +18,11 @@
 start_link({Node, Cookie, Type}) ->
     ChildId = goanna_node_sup:id(Node, Cookie),
     gen_server:start_link({local, ChildId}, ?MODULE, {Node,Cookie,Type, ChildId}, []).
+
+init({Node, Cookie, Type, ChildId}, sync) ->
+    %% First Connect, then allow initialisation to continue...
+    %% follow the normal connect attempt route...
+    ok.
 
 init({Node, Cookie, Type, ChildId}) ->
     false = process_flag(trap_exit, true),
@@ -253,9 +258,8 @@ reconnect(#?STATE{ connect_attempts = Attempts } = State) when Attempts =< 3 ->
 %%------------------------------------------------------------------------
 trace_steps(Node, Cookie, tcpip_port) ->
     tcpip_port_trace_steps(Node, Cookie);
-trace_steps(_Node, _Cookie, file) ->
-    ?EMERGENCY("dbg trace_port file - fearure not implemented..."),
-    erlang:halt(1);
+trace_steps(Node, Cookie, file) ->
+    file_port_trace_steps(Node, Cookie);
 trace_steps(Node, Cookie, erlang_distribution) ->
     erlang_distribution_trace_steps(Node, Cookie).
 
@@ -264,7 +268,6 @@ tcpip_port_trace_steps(Node, Cookie) ->
     [_Name, RelayHost] = string:tokens(atom_to_list(Node), "@"),
     {ok, RemoteDbgPid} = dbg_start(Node),
     %% Dbg pid is already linked...
-    ?DEBUG("DBG START Process:~p~n", [RemoteDbgPid]),
     PortGenerator = rpc:call(Node, dbg, trace_port, [ip, RelayPort]),
     case rpc:call(Node, dbg, tracer, [port, PortGenerator]) of
         {error, already_started} ->
@@ -279,9 +282,24 @@ tcpip_port_trace_steps(Node, Cookie) ->
     ?DEBUG("[~p] Node:~p MatchDesc:~p", [?MODULE, Node, MatchDesc]),
     {ok, RemoteDbgPid}.
 
+file_port_trace_steps(Node, Cookie) ->
+    {ok, RemoteDbgPid} = dbg_start(Node),
+    PortGenerator = rpc:call(Node, dbg, trace_port, [file, "/Users/rp/hd2/code/goanna/tracefile"]),
+    case rpc:call(Node, dbg, tracer, [port, PortGenerator]) of
+        {error, already_started} ->
+            ok;
+        {ok, RemoteDbgPid} ->
+            ok
+    end,
+    {ok,MatchDesc} = dbg_p(Node),
+    {ok, Fun} = handler_fun(Node, Cookie, file),
+    CLientPid = dbg:trace_client(file, "/Users/rp/hd2/code/goanna/tracefile", {Fun, ok}),
+    link(CLientPid),
+    ?DEBUG("[~p] Node:~p MatchDesc:~p", [?MODULE, Node, MatchDesc]),
+    {ok, RemoteDbgPid}.
+
 erlang_distribution_trace_steps(Node, Cookie) ->
     {ok, RemoteDbgPid} = dbg_start(Node),
-    ?DEBUG("DBG START Process:~n~p", [RemoteDbgPid]),
     {ok, RemoteFun} = handler_fun(Node, Cookie, erlang_distribution),
     case rpc:call(Node, dbg, tracer,
                  [Node, process, {RemoteFun, ok}])
@@ -306,9 +324,10 @@ dbg_start(Node) ->
         error:{badmatch,{badrpc,{'EXIT',
                 {{case_clause,DbgPid},_}
               }}} ->
+            ?DEBUG("[~p] DBG START Process:~p~n", [?MODULE, DbgPid]),
             {ok, DbgPid};
         C:E ->
-            ?ALERT("[~p] dbg start failed ~p", [?MODULE, {C,E}]),
+            ?ALERT("[~p] DBG START failed ~p", [?MODULE, {C,E}]),
             {ok, undefined}
     end.
 
@@ -322,6 +341,16 @@ handler_fun(Node, Cookie, tcpip_port) ->
             stop_tracing ->
                 ok
         end
+    end};
+handler_fun(Node, Cookie, file) ->
+    {ok, fun(Trace, _) ->
+        % case goanna_api:recv_trace([trace, goanna_node_sup:id(Node,Cookie)],Trace) of
+        %     ok ->
+        %         ok;
+        %     stop_tracing ->
+        %         ok
+        % end
+        io:format("FILE TRACE: ~p\n", [Trace])
     end};
 handler_fun(Node, Cookie, erlang_distribution) ->
     FunStr = lists:flatten(io_lib:format(

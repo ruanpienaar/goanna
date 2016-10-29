@@ -16,6 +16,8 @@ init({}) ->
 %% TODO: maybe record all children...
 handle_call({start_child, Node, Cookie, Type}, _From, State) ->
     {reply, goanna_node_sup:start_child(Node, Cookie, Type), State};
+handle_call({start_child_sync, Node, Cookie, Type}, _From, State) ->
+    {reply, goanna_node_sup:start_child_sync(Node, Cookie, Type), State};
 handle_call(_Request, _From, State) ->
     {reply, {error, unknown_call}, State}.
 

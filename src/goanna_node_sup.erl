@@ -4,7 +4,7 @@
 
 %% API
 -export([start_link/0,
-         start_child/3,
+         start_child/3, start_child_sync/3,
          delete_child/1
 ]).
 
@@ -34,6 +34,16 @@ start_child(Node, Cookie, Type) ->
         undefined ->
             {ok, NodeObj} = goanna_db:init_node([Node, Cookie, Type]),
             supervisor:start_child(?MODULE, ?CHILD(ChildId, goanna_node, worker, [NodeObj]));
+        ChildIdPid ->
+            {error,{already_started,ChildIdPid}}
+    end.
+
+start_child_sync(Node, Cookie, Type) ->
+    ChildId = id(Node,Cookie),
+    case whereis(ChildId) of
+        undefined ->
+            {ok, NodeObj} = goanna_db:init_node([Node, Cookie, Type]),
+            supervisor:start_child(?MODULE, ?CHILD(ChildId, goanna_node, worker, [NodeObj, sync]));
         ChildIdPid ->
             {error,{already_started,ChildIdPid}}
     end.
