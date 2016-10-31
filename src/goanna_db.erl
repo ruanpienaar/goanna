@@ -73,7 +73,7 @@ delete_node(Node) ->
 
 delete_child_id_tracelist(Node, Cookie) ->
     ChildId = goanna_node_sup:id(Node, Cookie),
-    ets:match_delete(tracelist, {{ChildId, '_'}, '_'}).
+    ets:match_delete(tracelist, {{ChildId, '_'}, '_', '_'}).
 
 truncate_tracelist([]) ->
     ets:delete_all_objects(tracelist).

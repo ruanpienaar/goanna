@@ -1,0 +1,2 @@
+When adding a now node, maybe start tracing, if cookie is the same as other nodes, ie: in same cluster.
+pretify escript goanna's trace lines.

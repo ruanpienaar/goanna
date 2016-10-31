@@ -23,7 +23,8 @@
 
 %% Traces
 -export([
-    pull_all_traces/0
+    pull_all_traces/0,
+    pull_traces/1
 ]).
 
 -include_lib("goanna.hrl").
@@ -226,9 +227,12 @@ list_active_traces() ->
 
 
 pull_all_traces() ->
+    pull_traces(50).
+
+pull_traces(Size) ->
     Nodes = ?MODULE:nodes(),
     F = fun({Node,Cookie,_}, Acc) ->
-        case pull_traces(goanna_node_sup:id(Node,Cookie)) of
+        case pull_child_traces(goanna_node_sup:id(Node,Cookie), Size) of
           [] ->
             Acc;
           Traces ->
@@ -239,8 +243,8 @@ pull_all_traces() ->
     end,
     lists:flatten(lists:foldl(F, [], Nodes)).
 
-pull_traces(ChildId) ->
-    goanna_db:pull(ChildId, 50).
+pull_child_traces(ChildId, Size) ->
+    goanna_db:pull(ChildId, Size).
 
 
 

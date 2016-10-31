@@ -41,8 +41,8 @@ api_test_() ->
             fun trace_validation/0}
         , {"API -> stop_trace tests",
             fun stop_trace/0}
-        , {"API -> stop_trace_validation tests",
-            fun stop_trace_validation/0}
+        , {"API -> reached_max_stop_trace tests",
+            fun reached_max_stop_trace/0}
      ]
     }.
 
@@ -351,6 +351,7 @@ stop_trace() ->
     %stop it
     ok = goanna_api:stop_trace(),
     [] = ets:tab2list(tracelist),
+    [] = goanna_api:list_active_traces(),
     GoannaState3 = sys:get_state(GoannaNode_Cookie),
     #?GOANNA_STATE{
         trace_msg_count = 0,
@@ -360,7 +361,40 @@ stop_trace() ->
 
     ok = goanna_api:remove_node(Node).
 
-stop_trace_validation() ->
+reached_max_stop_trace() ->
+    %% There should be no nodes, at first.
+    [] = goanna_api:nodes(),
+    {ok, Host} = inet:gethostname(),
+    Node = list_to_atom("tests@"++Host),
+    Cookie = cookie,
+    _GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
+
+    %% Add a node
+    {ok, _GoannaNodePid} =
+        goanna_api:add_node(Node, cookie, erlang_distribution),
+    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
+
+    %% Disable based on time (ms)...
+    ok = goanna_api:update_default_trace_options([{time, 1000}, {messages,100}]),
+    ok = goanna_api:trace(goanna_test_module, function),
+
+    %% Conveniently wait
+    timer:sleep(1000),
+    [] = ets:tab2list(tracelist),
+    [] = goanna_api:list_active_traces(),
+
+    %% Disable based on message count...
+    ok = goanna_api:update_default_trace_options([{time, 100000}, {messages,1}]),
+    ok = goanna_api:trace(goanna_test_module, function),
+    ok = goanna_test_module:function(),
+
+    timer:sleep(50),
+    Trcs = goanna_api:pull_all_traces(),
+    io:format("~p~n", [length(Trcs)]),
+    ?assert([] =/= Trcs),
+    [] = ets:tab2list(tracelist),
+    [] = goanna_api:list_active_traces(),
+
     ok.
 
 %%------------------------------------------------------------------------
