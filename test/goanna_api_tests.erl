@@ -43,7 +43,9 @@ api_test_() ->
             fun stop_trace/0}
         , {"API -> reached_max_stop_trace tests",
             fun reached_max_stop_trace/0}
-     ]
+        , {"API -> list_active_traces tests",
+            fun list_active_traces/0}
+     ]  
     }.
 
 goanna_api_nodes() ->
@@ -395,7 +397,51 @@ reached_max_stop_trace() ->
     [] = ets:tab2list(tracelist),
     [] = goanna_api:list_active_traces(),
 
-    ok.
+    ok = goanna_api:remove_node(Node).
+
+list_active_traces() ->
+    %% There should be no nodes, at first.
+    [] = goanna_api:nodes(),
+    {ok, Host} = inet:gethostname(),
+    Node = list_to_atom("tests@"++Host),
+    Cookie = cookie,
+    _GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
+
+    %% Add a node
+    {ok, _GoannaNodePid} =
+        goanna_api:add_node(Node, cookie, erlang_distribution),
+    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
+
+    %% just allow the tracing to be set for a long time, to reliably test the below.
+    ok = goanna_api:update_default_trace_options([{time, 60000}, {messages,1000000}]),
+
+    %% No traces there, right...
+    ?assert(length(goanna_api:list_active_traces()) == 0),
+
+    %% trace something, so we have a tracelist
+    ok = goanna_api:trace(goanna_test_module, function),
+    ok = goanna_api:trace(goanna_test_module, function2),
+    ok = goanna_api:trace(goanna_test_module, function3, 1),
+
+    %% Let's call the same thing again...
+    ok = goanna_api:trace(goanna_test_module, function),
+    ok = goanna_api:trace(goanna_test_module, function),
+    ok = goanna_api:trace(goanna_test_module, function),
+    ok = goanna_api:trace(goanna_test_module, function),
+    ok = goanna_api:trace(goanna_test_module, function),
+
+    ?assert(length(ets:tab2list(tracelist)) == 3),
+    ?assert(length(goanna_api:list_active_traces()) == 3),
+    ok = goanna_api:stop_trace(goanna_test_module, function),
+
+    %% Ok, maybe we have to wait for the ets obj to be deleted.
+    timer:sleep(50),
+
+    %% Check that the others survived.
+    ?assert(length(ets:tab2list(tracelist)) == 2),
+    ?assert(length(goanna_api:list_active_traces()) == 2),
+
+    ok = goanna_api:remove_node(Node).
 
 %%------------------------------------------------------------------------
 

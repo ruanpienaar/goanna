@@ -1,7 +1,16 @@
 -module(goanna_test_module).
 
--export([function/0]).
+-export([
+    function/0,
+    function2/0,
+    function3/1
+]).
 
--spec function() -> ok.
 function() ->
+    ok.
+
+function2() ->
+    ok.
+
+function3(_) ->
     ok.

@@ -167,7 +167,7 @@ handle_call({trace_item, Trace}, _From, #?STATE{ node=Node,
                                        trace_active = false
     }};
 handle_call({stop_trace, TrcPattern}, _From, #?STATE{ node = Node, cookie = Cookie } = State) ->
-    true = goanna_db:delete_child_id_tracelist(Node, Cookie),
+    true = goanna_db:delete_child_id_trace_pattern(Node, Cookie, TrcPattern),
     ok = disable_tracing(Node, TrcPattern),
 	{reply, ok, State};
 handle_call(stop_all_trace_patterns, _From, #?STATE{node=Node,

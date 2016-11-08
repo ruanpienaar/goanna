@@ -8,6 +8,7 @@
           lookup/1,
           delete_node/1,
           delete_child_id_tracelist/2,
+          delete_child_id_trace_pattern/3,
           truncate_tracelist/1,
           truncate_traces/1,
           pull/1,
@@ -74,6 +75,10 @@ delete_node(Node) ->
 delete_child_id_tracelist(Node, Cookie) ->
     ChildId = goanna_node_sup:id(Node, Cookie),
     ets:match_delete(tracelist, {{ChildId, '_'}, '_', '_'}).
+
+delete_child_id_trace_pattern(Node, Cookie, TrcPattern) ->
+    ChildId = goanna_node_sup:id(Node, Cookie),
+    ets:match_delete(tracelist, {{ChildId, TrcPattern}, '_', '_'}).
 
 truncate_tracelist([]) ->
     ets:delete_all_objects(tracelist).
