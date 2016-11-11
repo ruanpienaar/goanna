@@ -50,3 +50,10 @@ immediately applied, and trace options for all future traces.
 ```bash
 $ ./start-dev.sh
 ```
+
+If you are interested in running the escript. you can do so with 
+```
+$ make
+$ ./goanna -s   ( shortnames )
+$ ./goanna -l   ( you guessed it, long names )
+```

@@ -7,9 +7,19 @@
 -mode(compile).
 
 main([]) ->
+    main(["-s"]);
+
+main([NameType]) when NameType =:= "-s";
+		      NameType =:= "-l" ->
     %% FOLLOW the below if no arguments were given....
-    {ok, [Terms]} = file:consult("sys.config"),
-    {ok,_} = net_kernel:start([somename]),
+    {ok, [Terms]} = file:consult("sys.config"), 
+    %% TODO: Use Getopt
+    case NameType of
+        "-s" ->
+	    {ok,_} = net_kernel:start([somename, shortnames]);
+	"-l" ->
+	    {ok,_} = net_kernel:start([somename, longnames])
+    end,
     goanna_api:start(),
     ok = application:set_env(goanna, data_retrival_method, {push, 250, ?MODULE}),
     {goanna, GoannaConfig} = lists:keyfind(goanna, 1, Terms),
