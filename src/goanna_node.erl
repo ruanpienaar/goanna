@@ -26,7 +26,16 @@ init({Node, Cookie, Type, ChildId}, sync) ->
 
 init({Node, Cookie, Type, ChildId}) ->
     false = process_flag(trap_exit, true),
-    est_rem_conn(app_env_to_state(#?STATE{child_id=ChildId, node=Node, cookie=Cookie, type=Type})).
+    State = app_env_to_state(#?STATE{}),
+    {ok, _} = trace_steps(Node, Cookie, Type),
+    {ok, reapply_traces(State#?STATE{
+                    child_id=ChildId,
+                    node=Node,
+                    cookie=Cookie,
+                    type=Type,
+                    connected=true
+                })
+    }.
 %%------------------------------------------------------------------------
 %%---For updating the internal state of this gs---------------------------
 -spec app_env_to_state( #?STATE{} ) -> #?STATE{}.
@@ -47,7 +56,8 @@ app_env_to_state(State) ->
     State#?STATE{trace_msg_total=MessageCount,
                  trace_time=TraceTime,
                  data_retrival_method=FMethod,
-                 max_reconnecion_attempts=MaxConnAttempts
+                 max_reconnecion_attempts=MaxConnAttempts,
+                 push_pending = handle_data_retrival_method(FMethod)
     }.
 
 -spec est_rem_conn(#?STATE{}) -> {ok, #?STATE{}}.

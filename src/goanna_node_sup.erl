@@ -67,11 +67,13 @@ init([SysConfNodes]) when is_list(SysConfNodes) ->
     MaxRestarts = 10000,
     MaxSecondsBetweenRestarts = 9600,
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
-    {ok, {SupFlags, lists:map(fun([{node,Node},{cookie,Cookie},{type,Type}]) ->
-            %% I'd like to keep the ets table's entries, even after restarts.
-            {ok, NodeObj} = goanna_db:init_node([Node, Cookie, Type]),
-            ?CHILD(id(Node,Cookie), goanna_node, worker, [NodeObj])
-    end, SysConfNodes)}}.
+
+    lists:map(fun([{node,Node},{cookie,Cookie},{type,Type}]) ->
+        CCB = fun() -> goanna_node_sup:start_child(Node, Cookie, Type) end,
+        DCB = fun() -> goanna_node_sup:delete_child(Node) end,
+        {ok, Pid} = hawk:add_node(Node, Cookie, CCB, DCB)
+    end, SysConfNodes),
+    {ok, {SupFlags, []}}.
 
 id(Node, Cookie) ->
     list_to_atom(atom_to_list(Node)++?NODE_COOKIE_SEP++atom_to_list(Cookie)).

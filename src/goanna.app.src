@@ -15,7 +15,8 @@
                   syntax_tools,
                   sasl,
                   goldrush,
-                  lager
+                  lager,
+                  hawk
                  ]},
   {mod, { goanna_app, []}},
   {env, []}
