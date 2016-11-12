@@ -4,7 +4,6 @@
 -export([
     start/0, stop/0,
     add_node/3,
-    add_node_sync/3,
     remove_node/1,
     nodes/0,
     update_default_trace_options/1,
@@ -42,13 +41,10 @@ apps() ->
 %% API
 -spec nodes() -> list(proplists:proplist()).
 nodes() ->
-    NodeChildren =
-        [goanna_node_sup:to_node(ChildId)
-            || {ChildId, _, _, _}
-            <- supervisor:which_children(goanna_node_sup)],
+    HawkNodes = hawk:nodes(),
     lists:filter(
-        fun({Node,Cookie,_Type}) ->
-            lists:member([Node, Cookie], NodeChildren)
+        fun({Node,_Cookie,_Type}) ->
+            lists:member(Node, HawkNodes)
         end, goanna_db:nodes()
     ).
 
@@ -59,16 +55,21 @@ add_node(Node, Cookie, Type) when is_atom(Node),
                                   (Type == erlang_distribution orelse
                                    Type == file orelse
                                    Type == tcpip_port) ->
-    gen_server:call(goanna_node_manager, {start_child, Node, Cookie, Type}, infinity);
+
+    ConnectedCallBack = fun() -> {ok,_}=goanna_node_sup:start_child(Node, Cookie, Type) end,
+    DisconnCallBack = fun() -> ok=goanna_node_sup:delete_child(Node) end,
+    hawk:add_node(Node, Cookie, ConnectedCallBack, DisconnCallBack);
 add_node(_, _, _) ->
     {error, badarg}.
 
-add_node_sync(Node, Cookie, Type) ->
-    gen_server:call(goanna_node_manager, {start_child_sync, Node, Cookie, Type}, infinity).
-
 -spec remove_node(node()) -> ok | {error, no_such_node}.
 remove_node(Node) when is_atom(Node) ->
-    goanna_node_sup:delete_child(Node);
+    case goanna_node_sup:delete_child(Node) of
+        ok ->
+            hawk:remove_node(Node);
+        {error, no_such_node} ->
+            {error, no_such_node}
+    end;
 remove_node(_) ->
     {error, badarg}.
 

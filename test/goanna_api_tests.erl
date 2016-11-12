@@ -45,7 +45,7 @@ api_test_() ->
             fun reached_max_stop_trace/0}
         , {"API -> list_active_traces tests",
             fun list_active_traces/0}
-     ]  
+     ]
     }.
 
 goanna_api_nodes() ->
@@ -62,11 +62,13 @@ goanna_api_add_node() ->
     %% Adding it
     {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
+    timer:sleep(1),
     [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     %% Adding a duplicate
     {error,{already_started,GoannaNodePid}} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
+    timer:sleep(1),
     [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     %% removing it
@@ -77,18 +79,20 @@ goanna_api_add_node_cannot_connect() ->
 
     %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
-    FakeGoannaNode_Cookie = 'blabla@blahost_blacookie',
+    FakeGoannaNode = 'blabla@blahost_blacookie',
 
     %% Adding it
     {ok, _GoannaNodePid} =
-        goanna_api:add_node(FakeGoannaNode_Cookie, cookie, erlang_distribution),
-    [{_Node,_Cookie,erlang_distribution}] = goanna_api:nodes(),
+        goanna_api:add_node(FakeGoannaNode, cookie, erlang_distribution),
+    timer:sleep(1),
+    [] = goanna_api:nodes(),
 
     %% wait for 3*50ms attempts...
     timer:sleep(200),
 
-    %% Node should now have been removed...
-    [] = goanna_api:nodes().
+    %% Node should still not have connected. but hawk know's about it...
+    [] = goanna_api:nodes(),
+    ok = hawk:remove_node(FakeGoannaNode).
 
 goanna_api_add_node_validation() ->
     %% There should be no nodes, at first.
@@ -112,6 +116,7 @@ remove_node() ->
     %% Add, and then remove a known node:
     {ok, _GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
+    timer:sleep(1),
     [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
     ok = goanna_api:remove_node(Node).
 
@@ -133,6 +138,7 @@ update_default_trace_options() ->
     %% Add a node
     {ok, _GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
+    timer:sleep(1),
     [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     %% Then get the default values
@@ -194,6 +200,7 @@ update_default_trace_options_validation() ->
     %% Add a node
     {ok, _GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
+    timer:sleep(1),
     [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     %% Change the default values, Then Check the newly set values
@@ -226,6 +233,7 @@ set_data_retrival_method() ->
     %% Add a node
     {ok, _GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
+    timer:sleep(1),
     [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     %% Check defaults:
@@ -258,6 +266,7 @@ set_data_retrival_method_validation() ->
     %% Add a node
     {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
+    timer:sleep(1),
     [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     %% Try and set something invalid:
@@ -279,6 +288,7 @@ trace() ->
     %% Add a node
     {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
+    timer:sleep(1),
     [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     %% THen set the new data retrival method:
@@ -308,6 +318,7 @@ trace_validation() ->
     %% Add a node
     {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
+    timer:sleep(1),
     [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     %% just trace some non-sense
@@ -334,6 +345,7 @@ stop_trace() ->
     %% Add a node
     {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
+    timer:sleep(1),
     [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     ok = goanna_api:update_default_trace_options([{time, 1000}]),
@@ -374,6 +386,7 @@ reached_max_stop_trace() ->
     %% Add a node
     {ok, _GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
+    timer:sleep(1),
     [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     %% Disable based on time (ms)...
@@ -410,6 +423,7 @@ list_active_traces() ->
     %% Add a node
     {ok, _GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
+    timer:sleep(1),
     [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     %% just allow the tracing to be set for a long time, to reliably test the below.
@@ -446,15 +460,16 @@ list_active_traces() ->
 %%------------------------------------------------------------------------
 
 setup() ->
-    [_,_,_,_,_,_,_,_,_,_,_] =
+    [_,_,_,_,_,_,_,_,_,_,_,_] =
         goanna_api:start(),
     {ok, Host} = inet:gethostname(),
     make_distrib("tests@"++Host, shortnames),
     slave:start(Host, test1),
+    application:set_env(hawk, conn_retry_wait, 20),
     ok.
 
 cleanup(_) ->
-    [_,_,_,_,_,_,_,_,_,_,_] =
+    [_,_,_,_,_,_,_,_,_,_,_,_] =
         goanna_api:stop(),
     stop_distrib(),
     ok.
