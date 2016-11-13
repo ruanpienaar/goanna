@@ -55,21 +55,23 @@ add_node(Node, Cookie, Type) when is_atom(Node),
                                   (Type == erlang_distribution orelse
                                    Type == file orelse
                                    Type == tcpip_port) ->
-    ConnectedCallBack = fun() -> {ok,_}=goanna_node_sup:start_child(Node, Cookie, Type) end,
-    DisconnCallBack = fun() -> ok=goanna_node_sup:delete_child(Node) end,
+    ConnectedCallBack = [{goanna_connect, fun() -> {ok,_}=goanna_node_sup:start_child(Node, Cookie, Type) end}],
+    DisconnCallBack = [{goanna_disconenct, fun() -> ok=goanna_node_sup:delete_child(Node) end}],
     case hawk:node_exists(Node) of
         {ok, Pid, Callbacks} ->
             case lists:member(goanna_connect, Callbacks) andalso lists:member(goanna_disconenct, Callbacks) of
                 true ->
                     ok;
                 false ->
-                    ConnectedCallBack(),
-                    {ok,updated} = hawk:add_connect_callback(Node, ConnectedCallBack),
-                    {ok,updated} = hawk:add_disconnect_callback(Node, DisconnCallBack)
+                    [{CName,CF}] = ConnectedCallBack,
+                    [{DName,DCF}] = DisconnCallBack,
+                    CF(),
+                    {ok,updated} = hawk:add_connect_callback(Node, {CName,CF}),
+                    {ok,updated} = hawk:add_disconnect_callback(Node, {DName,DCF})
             end,
             {error,{already_started,Pid}};
         false ->
-            hawk:add_node(Node, Cookie, [{goanna_connect, ConnectedCallBack}], [{goanna_disconenct, DisconnCallBack}])
+            hawk:add_node(Node, Cookie, ConnectedCallBack, DisconnCallBack)
     end;
 add_node(_, _, _) ->
     {error, badarg}.
