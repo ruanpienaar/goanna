@@ -59,11 +59,15 @@ goanna_api_add_node() ->
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
 
+    io:format("HERE22 ! ", []),
+
     %% Adding it
     {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
     timer:sleep(1),
     [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
+
+    io:format("HERE ! ", []),
 
     %% Adding a duplicate
     {error,{already_started,GoannaNodePid}} =
