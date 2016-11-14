@@ -74,24 +74,23 @@ Tracing Example:
 Goanna features a host of different config options to be set as defaults, or can be adjust at runtime.
 One of which is limiting traces by either a timed limit, or trace message count limit, or whichever comes first.
 
-System configuration options:
-<dl>
-    <dt>Trace messages retrival method (data_retrival_method)</dt>
-    <dd>{push, WaitTime :: non_neg_integer(), Module :: atom()}</dd>
-    <dd>pull</dd>
-    
-    <dt>How much entries to push (push_data_batch_size)</dt>
-    <dd>non_neg_integer()</dd>
-    
-    <dt>Nodes (nodes)</dt>
-    
-    <dt>Traces (traces)</dt>
-    
-    <dt>Default Trace Options (default_trace_options)</dt>
-    
-    <dt>dbg:p trace flags (dbg_p_flags)</dt>
-    
-</dl>
+Application env System configuration options:
+
+1. data_retrival_method ( push or pull )
+ {push, WaitTime :: non_neg_integer(), Module :: atom()}
+ pull
+2. push_data_batch_size ( How much entries to push - applies to data_retrival_method=push )
+ non_neg_integer()
+3. nodes ( All your nodes )
+ [{node, Node :: atom()}, {cookie, Cookie :: atom()}, {type, Type :: tcpip_port | file | erlang_distribution}]
+4. traces ( All the active trace patterns to apply at startup
+ [{module,mod :: atom()}],
+ [{module,mod :: atom()}, {function,func :: atom()}],
+ [{module,mod :: atom()}, {function,func :: atom()}, {arity, Arity :: non_neg_integer()}],
+5. default_trace_options ( Options regarding running traces, like time, and trace message total count )
+ {time, TimeMs :: non_neg_integer()}
+ {messages, Messages :: non_neg_integer()}
+6. dbg_p_flags ( [dbg:p/2's](http://erlang.org/doc/man/dbg.html#p-2) Flag options **still experimental** )
 
 #WIP Roadmap
 1. escriptify getopt integration needed
