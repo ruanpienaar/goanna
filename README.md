@@ -75,7 +75,6 @@ Goanna features a host of different config options to be set as defaults, or can
 One of which is limiting traces by either a timed limit, or trace message count limit, or whichever comes first.
 
 System configuration options:
-```Erlang
 <dl>
     <dt>Trace messages retrival method (data_retrival_method)</dt>
     <dd>{push, WaitTime :: non_neg_integer(), Module :: atom()}</dd>
@@ -92,9 +91,7 @@ System configuration options:
     
     <dt>dbg:p trace flags (dbg_p_flags)</dt>
     
-    
 </dl>
-```
 
 #WIP Roadmap
 1. escriptify getopt integration needed
