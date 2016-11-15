@@ -39,7 +39,7 @@ $ ./goanna -l   ( you guessed it, long names )
 
 goanna allows you to easily specify nodes either in the command line, or in the sys.config.
 Goanna uses [hawk](https://github.com/ruanpienaar/hawk) for managing remote node connectivity.
-Hawk will try and reconnect nodes that have disconnected, and reapply the previous traces.
+Hawk will try and reconnect nodes that have disconnected and re-apply previous traces.
 This is useful in testing/debugging scenarios where the nodes are ephemeral or short lived due to an issue.
 
 Beam shell example:
@@ -59,7 +59,7 @@ Beam shell example:
 ```
 
 So once you've added some nodes, you can enable a trace pattern with Module, Module Function or Module Function Arity.
-**Module Function Matchspec coming soon. Where you'd be able to trace functionality and have traces returned based on the mactch spec**
+**Module Function match spec coming soon. Where you'd be able to trace functionality and have traces returned based on the match spec**
 
 Tracing Example:
 ```Erlang
@@ -71,8 +71,8 @@ Tracing Example:
 
 ```
 
-Goanna features a host of different config options to be set as defaults, or can be adjust at runtime.
-One of which is limiting traces by either a timed limit, or trace message count limit, or whichever comes first.
+Goanna features a host of different config options to be set as defaults or can be adjust at runtime.
+One of config settings deals with limiting traces by either a timed limit or trace message count limit or whichever comes first.
 
 Application env System configuration options:
 
@@ -89,7 +89,7 @@ Application env System configuration options:
  [{module,mod :: atom()}],  
  [{module,mod :: atom()}, {function,func :: atom()}],  
  [{module,mod :: atom()}, {function,func :: atom()}, {arity, Arity :: non_neg_integer()}],  
-5. default_trace_options ( Options regarding running traces, like time, and trace message total count )  
+5. default_trace_options ( Options regarding running traces, like time and trace message total count )  
  {time, TimeMs :: non_neg_integer()}
  {messages, Messages :: non_neg_integer()}
 6. dbg_p_flags ( [dbg:p/2's](http://erlang.org/doc/man/dbg.html#p-2) Flag options **still experimental** )  
