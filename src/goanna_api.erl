@@ -56,10 +56,10 @@ add_node(Node, Cookie, Type) when is_atom(Node),
                                    Type == file orelse
                                    Type == tcpip_port) ->
     ConnectedCallBack = [{goanna_connect, fun() -> {ok,_}=goanna_node_sup:start_child(Node, Cookie, Type) end}],
-    DisconnCallBack = [{goanna_disconenct, fun() -> ok=goanna_node_sup:delete_child(Node) end}],
+    DisconnCallBack = [{goanna_disconnect, fun() -> ok=goanna_node_sup:delete_child(Node) end}],
     case hawk:node_exists(Node) of
         {ok, Pid, Callbacks} ->
-            case lists:member(goanna_connect, Callbacks) andalso lists:member(goanna_disconenct, Callbacks) of
+            case lists:member(goanna_connect, Callbacks) andalso lists:member(goanna_disconnect, Callbacks) of
                 true ->
                     ok;
                 false ->
@@ -78,12 +78,7 @@ add_node(_, _, _) ->
 
 -spec remove_node(node()) -> ok | {error, no_such_node}.
 remove_node(Node) when is_atom(Node) ->
-    case goanna_node_sup:delete_child(Node) of
-        ok ->
-            hawk:remove_node(Node);
-        {error, no_such_node} ->
-            {error, no_such_node}
-    end;
+    hawk:remove_node(Node);
 remove_node(_) ->
     {error, badarg}.
 
