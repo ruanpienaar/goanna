@@ -52,7 +52,8 @@ main([NameType]) when NameType =:= "-s";
                 Traces ->
                     ok = startup_nodes(Nodes),
                     ?DEBUG("Waiting for nodes......~n", []),
-                    wait_for_nodes(Nodes, 500),
+                    wait_for_nodes(Nodes, 50),
+                    timer:sleep(50),
                     goanna_api:stop_trace(),
                     ?DEBUG("Applying Traces ~p~n", [Traces]),
                     traces(Traces)
@@ -88,7 +89,7 @@ wait_for_nodes(Nodes, Count) ->
 			ok;
 		false ->
 			?DEBUG("Waiting for nodes....~n", []),
-			timer:sleep(75),
+			timer:sleep(25),
 			wait_for_nodes(Nodes, Count-1)
 	end.
 
