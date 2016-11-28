@@ -43,11 +43,13 @@ main([NameType]) when NameType =:= "-s";
     case check_lookup_value(nodes, GoannaConfig) of
         [] ->
             ?CRITICAL("No nodes to start, check sys.config", []),
+            timer:sleep(10),
             erlang:halt(0);
         Nodes ->
             case check_lookup_value(traces, GoannaConfig) of
                 [] ->
                     ?CRITICAL("No traces to start, check sys.config", []),
+                    timer:sleep(10),
                     erlang:halt(0);
                 Traces ->
                     ok = startup_nodes(Nodes),
@@ -78,6 +80,7 @@ startup_nodes([H|T]) ->
     startup_nodes(T).
 
 wait_for_nodes(Nodes, 0) ->
+	timer:sleep(10),
 	?CRITICAL("Wait was too long, nodes haven't arrived", []),
 	erlang:halt(0);
 wait_for_nodes(Nodes, Count) ->
