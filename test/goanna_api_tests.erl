@@ -464,7 +464,7 @@ list_active_traces() ->
 %%------------------------------------------------------------------------
 
 setup() ->
-    [_,_,_,_,_,_,_,_,_,_,_,_] =
+    [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok] =
         goanna_api:start(),
     {ok, Host} = inet:gethostname(),
     make_distrib("tests@"++Host, shortnames),
@@ -473,7 +473,7 @@ setup() ->
     ok.
 
 cleanup(_) ->
-    [_,_,_,_,_,_,_,_,_,_,_,_] =
+    [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok] =
         goanna_api:stop(),
     stop_distrib(),
     ok.

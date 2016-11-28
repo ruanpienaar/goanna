@@ -20,7 +20,7 @@
 %% TODO: allow older erlang versions, to use the legacy erlang now()
 %% possibly update the macro below with a -ifdef, checking versions,
 %% or do a complete overhaul to rebar3
--define(GOANNA_NOW(), erlang:timestamp()).
+-define(GOANNA_NOW(), erlang:now()).
 
 init() ->
     nodelist = ets:new(nodelist, [public, set, named_table]),

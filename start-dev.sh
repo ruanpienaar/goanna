@@ -2,7 +2,7 @@
 # -mnesia dir "'"$PWD"/Mnesia'"
 
 if [ -z "$1" ]; then
-    DIST_NAME="-name"
+    DIST_NAME="-sname"
 else
     DIST_NAME="$1"
 fi

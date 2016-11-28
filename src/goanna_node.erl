@@ -556,11 +556,10 @@ check_forward_mod(undefined) ->
 check_forward_mod(Mod) ->
     % Make sure the default is loaded...ugly...
     c:l(Mod),
-
     % TODO: build a behaviour checker...
     case erlang:function_exported(Mod, forward, 2) of
         true ->
-            ok;
+        	?DEBUG("Forward module checked...", []);
         false ->
             ?EMERGENCY("[~p] Forwarding callback module ~p
                 missing required behaviour functions...halting...",

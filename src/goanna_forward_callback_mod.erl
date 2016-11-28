@@ -61,3 +61,4 @@
 
 
 -export_type([goanna_trace_tuple/0]).
+-export_type([erlang_trace_data/0]).

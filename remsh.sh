@@ -1,2 +1,2 @@
 #!/bin/bash
-erl -name remsh -setcookie goanna -remsh $1
+erl -sname remsh -setcookie goanna -remsh "goanna@`hostname`"

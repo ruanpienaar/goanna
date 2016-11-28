@@ -34,7 +34,7 @@ start() -> [ ok = application:ensure_started(APP) || APP <- apps() ].
 stop() -> [ ok = application:ensure_started(APP) || APP <- lists:reverse(apps()) ].
 apps() ->
     [asn1, crypto, public_key, ssl, compiler, inets, syntax_tools, sasl,
-         goldrush, lager, hawk, goanna].
+         goldrush, lager, color, stout, hawk, goanna].
 %%------------------------------------------------------------------------
 
 %%------------------------------------------------------------------------
