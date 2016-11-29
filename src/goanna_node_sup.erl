@@ -29,6 +29,7 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, [application:get_env(goanna, nodes, [])]).
 
 start_child(Node, Cookie, Type) ->
+	?DEBUG("Starting Child ~p ~p ~p", [Node, Cookie, Type]),
     ChildId = id(Node,Cookie),
     case whereis(ChildId) of
         undefined ->
@@ -39,6 +40,7 @@ start_child(Node, Cookie, Type) ->
     end.
 
 delete_child(Node) ->
+	?DEBUG("Deleting Child ~p", [Node]),
     case goanna_db:lookup([nodelist, Node]) of
         [{Node, Cookie,_}] ->
             ID=id(Node,Cookie),

@@ -18,4 +18,4 @@ fi
 #./rebar compile
 
 cd `dirname $0`
-erl +A 1 +K true $DIST_NAME $NAME -config $PWD/sys.config -pa $PWD/ebin $PWD/deps/*/ebin $PWD/test -setcookie goanna -s goanna_api start -hidden #-noshell -noinput -detached
+erl +A 1 +K true $DIST_NAME $NAME -config $PWD/sys.config -pa $PWD/ebin $PWD/deps/*/ebin $PWD/test -setcookie goanna -s goanna_api start -hidden -noshell -noinput -detached

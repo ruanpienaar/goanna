@@ -19,7 +19,7 @@ main([NameType]) when NameType =:= "-s";
 	        {ok,_} = net_kernel:start([somename, longnames])
     end,
     ok = application:set_env(hawk, conn_retry_wait, 10),
-    ok = application:set_env(hawk, connection_retries, 10000),
+    ok = application:set_env(hawk, connection_retries, 1000),
     %% Force push!
     ok = application:set_env(goanna, data_retrival_method, {push, 100, goanna_shell_printer}),
     {goanna, GoannaConfig} = lists:keyfind(goanna, 1, Terms),
@@ -38,61 +38,60 @@ main([NameType]) when NameType =:= "-s";
     {lager, LagerConf} = lists:keyfind(lager, 1, Terms),
     lists:foreach(fun({LagerConfCol,LagerConfVal}) ->
     	application:set_env(lager, LagerConfCol, LagerConfVal)
-    end, LagerConf),	
+    end, LagerConf),
     true = lists:all(fun(ok) -> true; (_) -> false end, goanna_api:start()),
     case check_lookup_value(nodes, GoannaConfig) of
         [] ->
             ?CRITICAL("No nodes to start, check sys.config", []),
-            timer:sleep(10),
+            timer:sleep(50),
             erlang:halt(0);
         Nodes ->
             case check_lookup_value(traces, GoannaConfig) of
                 [] ->
                     ?CRITICAL("No traces to start, check sys.config", []),
-                    timer:sleep(10),
+                    timer:sleep(50),
                     erlang:halt(0);
                 Traces ->
+                	?DEBUG("Startup nodes!"),
                     ok = startup_nodes(Nodes),
                     ?DEBUG("Waiting for nodes......~n", []),
-                    wait_for_nodes(Nodes, 50),
-                    timer:sleep(50),
-                    goanna_api:stop_trace(),
+                    wait_for_nodes(Nodes, 500),
                     ?DEBUG("Applying Traces ~p~n", [Traces]),
+                    timer:sleep(50),
                     traces(Traces)
             end
     end,
     infinite_loop().
-    % Also a way of starting a shell, from escript..
-    %%shell:start(),
-    %%timer:sleep(infinity).
 
-% TODO: Maybe prompt user for input when list empty?
-% H
-% [{node,'p1@127.0.0.1'},{cookie,pasture},{type,tcpip_port}]
 startup_nodes([]) ->
     ok;
 startup_nodes([H|T]) ->
     Node   = check_lookup_value(node, H),
-    ?DEBUG("Starting ~p~n", [Node]),
     Cookie = check_lookup_value(cookie, H),
     Type   = check_lookup_value(type, H),
     {ok, _} = goanna_api:add_node(Node, Cookie, Type),
     startup_nodes(T).
 
 wait_for_nodes(Nodes, 0) ->
-	timer:sleep(10),
 	?CRITICAL("Wait was too long, nodes haven't arrived", []),
+	timer:sleep(50),
 	erlang:halt(0);
 wait_for_nodes(Nodes, Count) ->
 	GN = goanna_api:nodes(),
-	?DEBUG("Nodes known to goanna: ~p~n", [Nodes]),
+	%%?DEBUG("Nodes known to goanna: ~p~n", [Nodes]),
 	case length(GN)==length(Nodes) of
 		true ->
-			?DEBUG("Nodes are alive now...~n", []),
-			ok;
+			Pids = [ whereis(N) || [{node,N},{cookie,C},{_,_}] <- Nodes],
+			case lists:all(fun(undefined) -> false; (P) when is_pid(P) -> true end, Pids) of
+				true ->
+					?INFO("Nodes are alive now..~p~n", [Pids]),
+					timer:sleep(5000);
+				false ->
+					wait_for_nodes(Nodes, Count-1)
+			end;
 		false ->
 			?DEBUG("Waiting for nodes....~n", []),
-			timer:sleep(25),
+			timer:sleep(10),
 			wait_for_nodes(Nodes, Count-1)
 	end.
 
@@ -125,4 +124,4 @@ check_lookup_value(Key, Proplist) ->
 
 infinite_loop() ->
     timer:sleep(1000),
-    infinite_loop().
+	infinite_loop().

@@ -113,7 +113,12 @@ set_data_retrival_method(_) ->
 
 -spec trace(atom()) -> ok.
 trace(Module) when is_atom(Module) ->
-    cluster_foreach_call({trace, [], [#trc_pattern{m=Module}]});
+    try 
+    	cluster_foreach_call({trace, [], [#trc_pattern{m=Module}]})
+    catch
+    	C:E ->
+    		?EMERGENCY("trace failed ~p ~p", [C,E])
+    end;
 trace(_) ->
     {error, badarg}.
 
@@ -188,10 +193,12 @@ cluster_foreach_call_infinity(Msg) ->
 call_node(ChildId, Msg) ->
     gen_server:call(ChildId, Msg).
 call_node(Node, Cookie, Msg) ->
-    gen_server:call(goanna_node_sup:id(Node, Cookie), Msg).
+	ChildId = goanna_node_sup:id(Node, Cookie),
+	call_node(ChildId, Msg).
 
 call_node_infinity(Node, Cookie, Msg) ->
-    gen_server:call(goanna_node_sup:id(Node, Cookie), Msg, infinity).
+	ChildId = goanna_node_sup:id(Node, Cookie),
+    gen_server:call(ChildId, Msg, infinity).
 %%------------------------------------------------------------------------
 %% When receiving traces...
 recv_trace([trace, _ChildId], end_of_trace) ->

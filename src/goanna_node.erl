@@ -492,10 +492,10 @@ push_data_loop(Mod, Tbl, Node, Key) ->
     push_data_loop(Mod, Tbl, Node, ets:next(Tbl, Key)).
 %%------------------------------------------------------------------------
 new_trace_timer(_ChildId, false, false) ->
-    undefined;
+    false;
 new_trace_timer(_ChildId, false, TRef) ->
     ok = cancel_timer(TRef),
-    undefined;
+    false;
 new_trace_timer(ChildId, NewTraceTime, false) ->
     ?WARNING("STOPPING traces after ~p Seconds", [NewTraceTime/1000]),
     {ok, TRef} = timer:apply_after(NewTraceTime, gen_server, call, [ChildId, stop_all_trace_patterns]),
