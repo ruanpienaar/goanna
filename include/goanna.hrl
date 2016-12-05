@@ -25,7 +25,8 @@
 -record(trc_pattern,{
     m,
     f,
-    a
+    a,
+    ms
 }).
 
 

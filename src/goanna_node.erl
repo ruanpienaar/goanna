@@ -167,10 +167,12 @@ handle_call({trace_item, Trace}, _From, #?STATE{ node=Node,
                                                  trace_msg_count=TMC,
                                                  trace_msg_total=TMT,
                                                  trace_active=true,
-                                                 connected=Connected } = State) when TMC >= TMT ->
+                                                 connected=Connected,
+                                                 type=Type } = State) when TMC >= TMT ->
     % ?DEBUG("[~p] [~p] Trace message count limit reached...", [?MODULE, Node]),
     true=goanna_db:store([trace, State#?STATE.child_id], Trace),
-    {ok,_} = disable_all_tracing(Connected, Node, Cookie),
+    ok  = disable_all_tracing(Connected, Node, Cookie),
+    {ok,_} = clear_tracelist_restart_dbg(Node, Cookie, Type),
     ok = cancel_timer(State#?STATE.trace_timer_tref),
     {reply, stop_tracing, State#?STATE{trace_msg_count = 0,
                                        trace_timer_tref = false,
@@ -183,10 +185,12 @@ handle_call({stop_trace, TrcPattern}, _From, #?STATE{ node = Node, cookie = Cook
 handle_call(stop_all_trace_patterns, _From, #?STATE{node=Node,
                                                     cookie=Cookie,
                                                     trace_msg_count=TMC,
-                                                    connected=Connected} = State) ->
+                                                    connected=Connected,
+                                                    type=Type} = State) ->
     %% TODO: why is this crashing?
     ?DEBUG("Stop trace - Total Message Count:~p~n", [TMC]),
-    {ok,_} = disable_all_tracing(Connected, Node, Cookie),
+    ok = disable_all_tracing(Connected, Node, Cookie),
+    {ok,_} = clear_tracelist_restart_dbg(Node, Cookie, Type),
     ok = cancel_timer(State#?STATE.trace_timer_tref),
     true = goanna_db:truncate_tracelist([]),
     {reply, ok, State#?STATE{
@@ -241,7 +245,7 @@ handle_info(Info, State) ->
 
 terminate(Reason, #?STATE{ node=Node, cookie=Cookie, connected=Connected } = _State) ->
     ?DEBUG("[~p] terminate ~p in ~p", [?MODULE, Reason, goanna_node_sup:id(Node, Cookie)]),
-    {ok,_} = disable_all_tracing(Connected, Node, Cookie),
+    ok = disable_all_tracing(Connected, Node, Cookie),
     true = goanna_db:delete_node(Node),
     ok.
 
@@ -391,19 +395,24 @@ handler_fun(Node, Cookie, erlang_distribution) ->
 %%------------------------------------------------------------------------
 enable_tracing(_Node, false) ->
     {error, nothing_to_trace};
-enable_tracing(Node, T=#trc_pattern{m=Module,f=undefined,a=undefined}) ->
-    ?DEBUG("[~p] [~p] enable_tracing:~p~n", [?MODULE, Node, T]),
+enable_tracing(Node, T=#trc_pattern{m=Module,f=undefined,a=undefined,ms=undefined}) ->
+    ?DEBUG("[~p] [~p] enable_tracing:~p~p~n", [?MODULE, {Module}, Node, T]),
     {ok, MatchDesc} = rpc:call(Node, dbg, tpl, [Module, cx]),
     ?DEBUG("[~p] [~p] dbg:tpl MatchDesc ~p",
         [?MODULE, Node, MatchDesc]);
-enable_tracing(Node, T=#trc_pattern{m=Module,f=Function,a=undefined}) ->
-    ?DEBUG("[~p] [~p] enable_tracing:~p~n", [?MODULE, Node, T]),
+enable_tracing(Node, T=#trc_pattern{m=Module,f=Function,a=undefined,ms=undefined}) ->
+    ?DEBUG("[~p] [~p] enable_tracing:~p~p~n", [?MODULE, {Module,Function}, Node, T]),
     {ok, MatchDesc} = rpc:call(Node, dbg, tpl, [Module, Function, cx]),
     ?DEBUG("[~p] [~p] dbg:tpl MatchDesc ~p",
         [?MODULE, Node, MatchDesc]);
-enable_tracing(Node, T=#trc_pattern{m=Module,f=Function,a=Arity}) ->
-    ?DEBUG("[~p] [~p] enable_tracing:~p~n", [?MODULE, Node, T]),
+enable_tracing(Node, T=#trc_pattern{m=Module,f=Function,a=Arity,ms=undefined}) ->
+    ?DEBUG("[~p] [~p] enable_tracing:~p~p~n", [?MODULE, {Module,Function,Arity}, Node, T]),
     {ok, MatchDesc} = rpc:call(Node, dbg, tpl,[Module, Function, Arity, cx]),
+    ?DEBUG("[~p] [~p] dbg:tpl MatchDesc ~p",
+        [?MODULE, Node, MatchDesc]);
+enable_tracing(Node, T=#trc_pattern{m=Module,f=Function,a=Arity,ms=Ms}) ->
+    ?DEBUG("[~p] [~p] enable_tracing:~p~p~n", [?MODULE, {Module,Function,Arity,Ms}, Node, T]),
+    {ok, MatchDesc} = rpc:call(Node, dbg, tpl,[Module, Function, Arity, Ms]),
     ?DEBUG("[~p] [~p] dbg:tpl MatchDesc ~p",
         [?MODULE, Node, MatchDesc]).
 %%------------------------------------------------------------------------
@@ -415,8 +424,11 @@ disable_all_tracing(Connected, Node, Cookie) when Connected=:=true ->
         ok ->
             ok;
         {badrpc,nodedown} ->
+            ?CRITICAL("Tried stopping DBG, but node has gone..."),
             ok
-    end,
+    end.
+
+clear_tracelist_restart_dbg(Node, Cookie, Type) ->
     %% Just make sure dbg, and tracer is always started..
     case dbg_start(Node) of
         {ok, _RemoteDbgPid} ->
