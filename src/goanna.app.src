@@ -14,8 +14,6 @@
                   inets,
                   syntax_tools,
                   sasl,
-                  goldrush,
-                  lager,
                   hawk
                  ]},
   {mod, { goanna_app, []}},

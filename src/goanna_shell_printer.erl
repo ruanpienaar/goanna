@@ -12,77 +12,89 @@
 
 -spec forward(Tbl :: term(), goanna_forward_callback_mod:goanna_trace_tuple()) -> ok.
 %% Warning is used for the nice Yellow color, from the default lager config.
-forward(Tbl, {Now, TraceItem}) ->
-    format_trace_item(Tbl,Now,TraceItem).
+forward(Tbl, {_, TraceItem}) ->
+    format_trace_item(Tbl,TraceItem).
 
 get_time({_,_,Micro} = Timestamp) ->
     {{Year, Month, Day}, {Hour, Minute, Second}} = calendar:now_to_datetime(Timestamp),
     lists:flatten(io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0w.~3..0sZ",
                   [Year, Month, Day, Hour, Minute, Second, integer_to_list(Micro)])).
 
--spec format_trace_item(atom(), calendar:now(), goanna_forward_callback_mod:erlang_trace_data()) -> string().
+-spec format_trace_item(atom(), goanna_forward_callback_mod:erlang_trace_data()) -> string().
+
+% i removed calling erlang:now()/erlang:timestamp() for each recieved trace message.
+% and rather decided to stick with trace_ts, hence the removal of the below code...
 
 %% trace
-format_trace_item(T,N,_Trace={trace, _Pid, exception_from, Info}) ->
-    ?ERROR("~s ~p ~.5s: ~p", [get_time(N), T, get_trace_abbreviation(exception_from), Info]);
-    
-format_trace_item(T,N,_Trace={trace, _Pid, return_from, Info}) ->
-    ?NOTICE("~s ~p ~.5s: ~p", [get_time(N), T, get_trace_abbreviation(return_from), Info]);
-    
-format_trace_item(T,N,_Trace={trace, _Pid, call, Info}) ->
-    ?NOTICE("~s ~p ~.5s: ~p", [get_time(N), T, get_trace_abbreviation(call), Info]);
+% format_trace_item(T,_Trace={trace, _Pid, exception_from, Info}) ->
+%     ?ERROR("~p ~.5s: ~p", [T, get_trace_abbreviation(exception_from), Info]);
 
-format_trace_item(T,N,_Trace={trace, _Pid, Label, Info}) ->
-    ?NOTICE("~s ~p ~.5s: ~p", [get_time(N), T, get_trace_abbreviation(Label), Info]);
+% format_trace_item(T,_Trace={trace, _Pid, return_from, Info}) ->
+%     ?NOTICE("~p ~.5s: ~p", [T, get_trace_abbreviation(return_from), Info]);
 
-format_trace_item(T,N,_Trace={trace, _Pid, exception_from, Info, Extra}) ->
-    ?ERROR("~s ~p ~.5s: ~p ~p", [get_time(N), T, get_trace_abbreviation(exception_from), Info, Extra]);
+% format_trace_item(T,_Trace={trace, _Pid, call, Info}) ->
+%     ?NOTICE("~p ~.5s: ~p", [T, get_trace_abbreviation(call), Info]);
 
-format_trace_item(T,N,_Trace={trace, _Pid, return_from, Info, Extra}) ->
-    ?NOTICE("~s ~p ~.5s: ~p ~p", [get_time(N), T, get_trace_abbreviation(return_from), Info, Extra]);
-    
-format_trace_item(T,N,_Trace={trace, _Pid, call, Info, Extra}) ->
-    ?NOTICE("~s ~p ~.5s: ~p ~p", [get_time(N), T, get_trace_abbreviation(call), Info, Extra]);
-    
-format_trace_item(T,N,_Trace={trace, _Pid, Label, Info, Extra}) ->
-    ?INFO("~s ~p ~.5s: ~p ~p", [get_time(N), T, get_trace_abbreviation(Label), Info, Extra]);
-   
+% format_trace_item(T,_Trace={trace, _Pid, Label, Info}) ->
+%     ?NOTICE("~p ~.5s: ~p", [T, get_trace_abbreviation(Label), Info]);
+
+% format_trace_item(T,_Trace={trace, _Pid, exception_from, Info, Extra}) ->
+%     ?ERROR("~s ~p ~.5s: ~p ~p", [T, get_trace_abbreviation(exception_from), Info, Extra]);
+
+% format_trace_item(T,_Trace={trace, _Pid, return_from, Info, Extra}) ->
+%     ?NOTICE("~p ~.5s: ~p ~p", [T, get_trace_abbreviation(return_from), Info, Extra]);
+
+% format_trace_item(T,_Trace={trace, _Pid, call, Info, Extra}) ->
+%     ?NOTICE("~p ~.5s: ~p ~p", [T, get_trace_abbreviation(call), Info, Extra]);
+
+% format_trace_item(T,_Trace={trace, _Pid, Label, Info, Extra}) ->
+%     ?INFO("~p ~.5s: ~p ~p", [T, get_trace_abbreviation(Label), Info, Extra]);
+
 %% trace_ts
-format_trace_item(T,N,_Trace={trace_ts, _Pid, exception_from, Info, ReportedTS}) ->
-    ?ERROR("~s ~p ~p ~.5s: ~p", [get_time(N), get_time(ReportedTS), T, get_trace_abbreviation(exception_from), Info]);
-    
-format_trace_item(T,N,_Trace={trace_ts, _Pid, return_from, Info, ReportedTS}) ->
-    ?NOTICE("~s ~p ~p ~.5s: ~p", [get_time(N), get_time(ReportedTS), T, get_trace_abbreviation(return_from), Info]);
-    
-format_trace_item(T,N,_Trace={trace_ts, _Pid, call, Info, ReportedTS}) ->
-    ?NOTICE("~s ~p ~p ~.5s: ~p", [get_time(N), get_time(ReportedTS), T, get_trace_abbreviation(call), Info]);
+format_trace_item(T,_Trace={trace_ts, _Pid, exception_from, Info, ReportedTS}) ->
+    % ?ERROR("~s ~p ~.5s: ~p", [get_time(ReportedTS), T, get_trace_abbreviation(exception_from), Info]);
+    io:format("~s ~p ~.5s: ~p", [get_time(ReportedTS), T, get_trace_abbreviation(exception_from), Info]);
 
-format_trace_item(T,N,_Trace={trace_ts, _Pid, Label, Info, ReportedTS}) ->
-    ?NOTICE("~s ~p ~p ~.5s: ~p", [get_time(N), get_time(ReportedTS), T, get_trace_abbreviation(Label), Info]);
+format_trace_item(T,_Trace={trace_ts, _Pid, return_from, Info, ReportedTS}) ->
+    % ?NOTICE("~s ~p ~.5s: ~p", [get_time(ReportedTS), T, get_trace_abbreviation(return_from), Info]);
+    io:format("~s ~p ~.5s: ~p", [get_time(ReportedTS), T, get_trace_abbreviation(return_from), Info]);
 
-format_trace_item(T,N,_Trace={trace_ts, _Pid, exception_from, Info, Extra, ReportedTS}) ->
-    ?ERROR("~s ~p ~p ~.5s: ~p ~p", [get_time(N), get_time(ReportedTS), T, get_trace_abbreviation(exception_from), Info, Extra]);
+format_trace_item(T,_Trace={trace_ts, _Pid, call, Info, ReportedTS}) ->
+    % ?NOTICE("~s ~p ~.5s: ~p", [get_time(ReportedTS), T, get_trace_abbreviation(call), Info]);
+    io:format("~s ~p ~.5s: ~p", [get_time(ReportedTS), T, get_trace_abbreviation(call), Info]);
 
-format_trace_item(T,N,_Trace={trace_ts, _Pid, return_from, Info, Extra, ReportedTS}) ->
-    ?NOTICE("~s ~p ~p ~.5s: ~p ~p", [get_time(N), get_time(ReportedTS), T, get_trace_abbreviation(return_from), Info, Extra]);
-    
-format_trace_item(T,N,_Trace={trace_ts, _Pid, call, Info, Extra, ReportedTS}) ->
-    ?NOTICE("~s ~p ~p ~.5s: ~p ~p", [get_time(N), get_time(ReportedTS), T, get_trace_abbreviation(call), Info, Extra]);
-    
-format_trace_item(T,N,_Trace={trace_ts, _Pid, Label, Info, Extra, ReportedTS}) ->
-    ?INFO("~s ~p ~p ~.5s: ~p ~p", [get_time(N), get_time(ReportedTS), T, get_trace_abbreviation(Label), Info, Extra]);
-    
-format_trace_item(T,N,Trace={seq_trace, _Label, _SeqTraceInfo}) ->
-   ?ALERT("~p ~p ~p", [get_time(N), T, Trace]);
-    
-format_trace_item(T,N,Trace={drop, _NumberOfDroppedItems}) ->
-    ?WARNING("~p ~p ~p", [get_time(N), T, Trace]);
+format_trace_item(T,_Trace={trace_ts, _Pid, Label, Info, ReportedTS}) ->
+    % ?NOTICE("~s ~p ~.5s: ~p", [get_time(ReportedTS), T, get_trace_abbreviation(Label), Info]);
+    io:format("~s ~p ~.5s: ~p", [get_time(ReportedTS), T, get_trace_abbreviation(Label), Info]);
 
-format_trace_item(T,N,Trace) ->
-    ?EMERGENCY("~p ~p ~p", [get_time(N), T, Trace]).
-    
+format_trace_item(T,_Trace={trace_ts, _Pid, exception_from, Info, Extra, ReportedTS}) ->
+    % ?ERROR("~s ~p ~.5s: ~p ~p", [get_time(ReportedTS), T, get_trace_abbreviation(exception_from), Info, Extra]);
+    io:format("~s ~p ~.5s: ~p ~p", [get_time(ReportedTS), T, get_trace_abbreviation(exception_from), Info, Extra]);
+
+format_trace_item(T,_Trace={trace_ts, _Pid, return_from, Info, Extra, ReportedTS}) ->
+    % ?NOTICE("~s ~p ~.5s: ~p ~p", [get_time(ReportedTS), T, get_trace_abbreviation(return_from), Info, Extra]);
+    io:format("~s ~p ~.5s: ~p ~p", [get_time(ReportedTS), T, get_trace_abbreviation(return_from), Info, Extra]);
+
+format_trace_item(T,_Trace={trace_ts, _Pid, call, Info, Extra, ReportedTS}) ->
+    % ?NOTICE("~s ~p ~.5s: ~p ~p", [get_time(ReportedTS), T, get_trace_abbreviation(call), Info, Extra]);
+    io:format("~s ~p ~.5s: ~p ~p", [get_time(ReportedTS), T, get_trace_abbreviation(call), Info, Extra]);
+
+format_trace_item(T,_Trace={trace_ts, _Pid, Label, Info, Extra, ReportedTS}) ->
+    % ?INFO("~s ~p ~.5s: ~p ~p", [get_time(ReportedTS), T, get_trace_abbreviation(Label), Info, Extra]);
+    io:format("~s ~p ~.5s: ~p ~p", [get_time(ReportedTS), T, get_trace_abbreviation(Label), Info, Extra]);
+
+format_trace_item(T,Trace={seq_trace, _Label, _SeqTraceInfo}) ->
+   io:format("~p ~p", [T, Trace]);
+
+format_trace_item(T,Trace={drop, _NumberOfDroppedItems}) ->
+    io:format("~p ~p", [T, Trace]);
+
+format_trace_item(T,Trace) ->
+    io:format("~p ~p", [T, Trace]).
+
+-spec log_levels() -> ok.
 log_levels() ->
-    ?DEBUG("DEBUG", []), 
+    ?DEBUG("DEBUG", []),
     ?INFO("INFO", []),
     ?NOTICE("NOTICE", []),
     ?WARNING("WARNING", []),
@@ -90,7 +102,7 @@ log_levels() ->
     ?CRITICAL("CRITICAL", []),
     ?ALERT("ALERT", []),
     ?EMERGENCY("EMERGENCY", []).
-    
+
 get_trace_abbreviation('receive') ->
     "REC";
 get_trace_abbreviation(send) ->
@@ -130,6 +142,7 @@ get_trace_abbreviation(gc_start) ->
 get_trace_abbreviation(gc_end) ->
     "GCE".
 
+-spec trace_abbreviations() -> ok.
 trace_abbreviations() ->
     io:format("receive                      REC~n", []),
     io:format("send                         S~n", []),

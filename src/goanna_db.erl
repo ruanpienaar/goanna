@@ -1,5 +1,6 @@
 -module (goanna_db).
 -export ([
+          check_value/0,
           init/0,
           init_node/1,
           node_table_exists/2,
@@ -15,18 +16,24 @@
           pull/2
 ]).
 
+-ifdef(VSN).
+-define(X(), io:format("...")).
+-else.
+-define(X(), io:format("else")).
+-endif.
+
+-spec check_value() -> ok.
+check_value() ->
+    ?X().
+
 %% API
-
-%% TODO: allow older erlang versions, to use the legacy erlang now()
-%% possibly update the macro below with a -ifdef, checking versions,
-%% or do a complete overhaul to rebar3
--define(GOANNA_NOW(), erlang:now()).
-
+-spec init() -> relay_tcpip_allocated_ports.
 init() ->
     nodelist = ets:new(nodelist, [public, set, named_table]),
     tracelist = ets:new(tracelist, [public, set, named_table]),
     relay_tcpip_allocated_ports = ets:new(relay_tcpip_allocated_ports, [public, set, named_table]).
 
+-spec init_node(list()) -> atom().
 init_node([Node, Cookie, Type]) ->
     NodeObj = {Node, Cookie, Type},
     true = ets:insert(nodelist, NodeObj),
@@ -34,11 +41,12 @@ init_node([Node, Cookie, Type]) ->
     case ets:info(ChildId, size) of
         undefined ->
             ChildId = ets:new(ChildId, [public, ordered_set, named_table]);
-        Size when is_integer(Size) ->
+        Size when is_integer(Size) -> %% Table already exists, why would it exist?
             ok
     end,
     {ok, NodeObj}.
 
+-spec node_table_exists(node(), atom()) -> boolean().
 node_table_exists(Node, Cookie) ->
     ChildId = goanna_node_sup:id(Node, Cookie),
     case ets:info(ChildId, size) of
@@ -46,19 +54,24 @@ node_table_exists(Node, Cookie) ->
         S when is_integer(S) -> true
     end.
 
+-spec nodes() -> list().
 nodes() ->
     ets:tab2list(nodelist).
 
+-spec store(atom() | list(), term()) -> ok | {error, term()}.
 store(ChildId, Trace) when is_atom(ChildId) ->
-	ets:insert(ChildId, Trace);
-store([trace, ChildId], Trace) ->
-    ets:insert(ChildId, {?GOANNA_NOW(),Trace});
-store([trace, Node, Cookie], Trace) ->
-    ChildId = goanna_node_sup:id(Node, Cookie),
-    ets:insert(ChildId, {?GOANNA_NOW(),Trace});
-store([tracelist, ChildId, TrcPattern], Opts) ->
-    ets:insert(tracelist, {{ChildId, TrcPattern}, ?GOANNA_NOW(), Opts}).
+    ets:insert(ChildId, Trace);
 
+store([trace, ChildId], {trace_ts,P,L,I,T}) ->
+    ets:insert(ChildId, {T, {trace_ts,P,L,I,T}});
+store([trace, ChildId], {trace_ts,P,L,I,E,T}) ->
+    ets:insert(ChildId, {T, {trace_ts,P,L,I,E,T}});
+store([trace, Node, Cookie], Trace) ->
+    store([trace, goanna_node_sup:id(Node, Cookie)], Trace);
+store([tracelist, ChildId, TrcPattern], Opts) ->
+    ets:insert(tracelist, {{ChildId, TrcPattern}, Opts}).
+
+-spec lookup(list()) -> term().
 lookup([nodelist, Node]) ->
     ets:lookup(nodelist, Node);
 lookup([trc_pattern, ChildId, TrcPattern]) ->
@@ -69,26 +82,33 @@ lookup([trc_pattern, Node, Cookie, TrcPattern]) ->
 lookup([trace, Tbl, Key]) ->
     ets:lookup(Tbl, Key).
 
+-spec delete_node(atom()) -> ok | {error, term()}.
 delete_node(Node) ->
     ets:delete(nodelist, Node).
 
+-spec delete_child_id_tracelist(node(), atom()) -> ok | {error, term()}.
 delete_child_id_tracelist(Node, Cookie) ->
     ChildId = goanna_node_sup:id(Node, Cookie),
-    ets:match_delete(tracelist, {{ChildId, '_'}, '_', '_'}).
+    ets:match_delete(tracelist, {{ChildId, '_'}, '_'}).
 
+-spec delete_child_id_trace_pattern(node(), atom(), term()) -> ok | {error, term()}.
 delete_child_id_trace_pattern(Node, Cookie, TrcPattern) ->
     ChildId = goanna_node_sup:id(Node, Cookie),
-    ets:match_delete(tracelist, {{ChildId, TrcPattern}, '_', '_'}).
+    ets:match_delete(tracelist, {{ChildId, TrcPattern}, '_'}).
 
+-spec truncate_tracelist(list()) -> [] | {error, term()}.
 truncate_tracelist([]) ->
     ets:delete_all_objects(tracelist).
 
+-spec truncate_traces(term()) -> ok | {error, term()}.
 truncate_traces(Tbl) ->
     ets:delete_all_objects(Tbl).
 
+-spec first(atom()) -> '$end_of_table' | term().
 first(Tbl) ->
 	ets:first(Tbl).
 
+-spec next(term(), term()) -> '$end_of_table' | term().
 next(Tbl, Continuation) ->
 	ets:next(Tbl, Continuation).
 
@@ -101,9 +121,11 @@ lookup_entry(Tbl, Key) ->
 delete(Tbl, Key) ->
 	ets:delete(Tbl, Key).
 
+-spec pull(atom()) -> list().
 pull(Tbl) ->
 	pull(Tbl, 1).
 
+-spec pull(atom(), non_neg_integer()) -> list().
 pull(Tbl, BatchSize) ->
 	End=end_of_table(),
 	case first(Tbl) of

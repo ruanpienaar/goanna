@@ -4,7 +4,7 @@
 %% Also at et_selector.erl & et_collector.erl
 
 % Label intended to provide a brief event summary.
--type event_summary_label() :: 
+-type event_summary_label() ::
     'receive' |
     send |
     send_to_non_existing_process |
@@ -29,7 +29,7 @@
 -type seq_trace_label() :: integer().
 
 % this is usually the meat of the trace mesage:
-% {module, function, arity} | 
+% {module, function, arity} |
 -type msg() :: any().
 
 % This is usually the value, of type event_summary_label() 'return_[to/from]'
@@ -38,11 +38,11 @@
 -type return_val() :: any().
 
 %% TODO: for later, flesh out the exact values:
--type seq_trace_info() :: 
+-type seq_trace_info() ::
     % Used when a process From with its trace token flag print set to true has sent a message.
     {send, Serial :: any(), From :: any(), To :: any(), Message :: any()} |
     % Used when a process To receives a message with a trace token that has flag 'receive' set to true.
-    {'receive', Serial :: any(), From :: any(), To :: any(), Message :: any()} | 
+    {'receive', Serial :: any(), From :: any(), To :: any(), Message :: any()} |
     % Used when a process From has called seq_trace:print(Label, TraceInfo) and has a trace token with flag print set to true, and label set to Label.
     {print, Serial :: any(), From :: any(), _ :: any(), Info :: any()}.
 

@@ -31,11 +31,14 @@
 
 %%------------------------------------------------------------------------
 %% Goanna start-up helper only
+-spec start() -> list().
 start() -> [ ok = application:ensure_started(APP) || APP <- apps() ].
+-spec stop() -> list().
 stop() -> [ ok = application:ensure_started(APP) || APP <- lists:reverse(apps()) ].
+-spec apps() -> list().
 apps() ->
     [asn1, crypto, public_key, ssl, compiler, inets, syntax_tools, sasl,
-         goldrush, lager, color, stout, hawk, goanna].
+     hawk, goanna].
 %%------------------------------------------------------------------------
 
 %%------------------------------------------------------------------------
@@ -111,37 +114,36 @@ set_data_retrival_method(DRM={push, _Interval, _Mod}) ->
 set_data_retrival_method(_) ->
     {error, badarg}.
 
-
--spec trace(atom()) -> ok.
+-spec trace(atom()) -> ok | {error, badarg}.
 trace(Module) when is_atom(Module) ->
     try
-    	cluster_foreach_call({trace, [], [#trc_pattern{m=Module}]})
+        cluster_foreach_call({trace, [], [#trc_pattern{m=Module}]})
     catch
-    	C:E ->
-    		?EMERGENCY("trace failed ~p ~p", [C,E])
+        C:E ->
+            io:format("trace failed ~p ~p", [C,E])
     end;
 trace(_) ->
     {error, badarg}.
 
--spec trace(atom(), atom()) -> ok.
+-spec trace(atom(), atom()) -> ok | {error, badarg}.
 trace(Module, Function) when is_atom(Module), is_atom(Function) ->
     cluster_foreach_call({trace, [], [#trc_pattern{m=Module,f=Function}]});
 trace(_, _) ->
     {error, badarg}.
 
--spec trace(atom(), atom(), integer()) -> ok.
+-spec trace(atom(), atom(), integer()) -> ok | {error, badarg}.
 trace(Module, Function, Arity) when is_atom(Module), is_atom(Function), is_integer(Arity) ->
     cluster_foreach_call({trace, [], [#trc_pattern{m=Module,f=Function,a=Arity}]});
 trace(_, _, _) ->
     {error, badarg}.
 
--spec trace(atom(), atom(), integer(), list()) -> ok.
+-spec trace(atom(), atom(), integer(), list()) -> ok | {error, badarg}.
 trace(Module, Function, Arity, Opts) when is_atom(Module), is_atom(Function), is_integer(Arity), is_list(Opts) ->
     cluster_foreach_call({trace, Opts, [#trc_pattern{m=Module,f=Function,a=Arity}]});
 trace(_,_,_,_) ->
     {error, badarg}.
 
-%% Redbug integration work....
+-spec trc(string()) -> ok.
 trc(Str) when is_list(Str) ->
     %% http://erldocs.com/current/erts/erlang.html?i=1&search=erlang:trace_pa#trace_pattern/3
     %% not really using Flags, with my DBG implementation yet..
@@ -161,7 +163,6 @@ trace_modules(Modules, Opts) ->
           M /= io )
     ]}).
 
-
 -spec stop_trace() -> ok.
 stop_trace() ->
     cluster_foreach_call(stop_all_trace_patterns).
@@ -179,6 +180,7 @@ stop_trace(Module, Function, Arity) ->
     cluster_foreach_call({stop_trace, #trc_pattern{m=Module,f=Function,a=Arity}}).
 
 %%------------------------------------------------------------------------
+-spec clear_all_traces() -> ok.
 clear_all_traces() ->
     cluster_foreach_call({clear_db_traces}).
 
@@ -201,63 +203,45 @@ cluster_foreach_call_infinity(Msg) ->
 call_node(ChildId, Msg) ->
     gen_server:call(ChildId, Msg).
 call_node(Node, Cookie, Msg) ->
-	ChildId = goanna_node_sup:id(Node, Cookie),
-	call_node(ChildId, Msg).
+    ChildId = goanna_node_sup:id(Node, Cookie),
+    call_node(ChildId, Msg).
 
 call_node_infinity(Node, Cookie, Msg) ->
-	ChildId = goanna_node_sup:id(Node, Cookie),
+    ChildId = goanna_node_sup:id(Node, Cookie),
     gen_server:call(ChildId, Msg, infinity).
 %%------------------------------------------------------------------------
-%% When receiving traces...
+-spec recv_trace(list(), end_of_trace | goanna_forward_callback_mod:erlang_trace_data()) -> ok | stop_tracing.
 recv_trace([trace, _ChildId], end_of_trace) ->
-    %% TODO: MAYBE check if traces are disabled ??? on goanna_node?
     ok;
 recv_trace([trace, ChildId], Trace={trace, _Pid, _Label, _Info}) ->
-    % pidbang_trace_collector({trace_item, ChildId, Trace});
     call_node(ChildId, {trace_item, Trace});
-
 recv_trace([trace, ChildId], Trace={trace, _Pid, _Label, _Info, _Extra}) ->
-    % pidbang_trace_collector({trace_item, ChildId, Trace});
     call_node(ChildId, {trace_item, Trace});
-
 recv_trace([trace, ChildId], Trace={trace_ts, _Pid, _Label, _Info, _ReportedTS}) ->
-    % pidbang_trace_collector({trace_item, ChildId, Trace});
     call_node(ChildId, {trace_item, Trace});
-
 recv_trace([trace, ChildId], Trace={trace_ts, _Pid, _Label, _Info, _Extra, _ReportedTS}) ->
-    % pidbang_trace_collector({trace_item, ChildId, Trace});
     call_node(ChildId, {trace_item, Trace});
-
 recv_trace([trace, _ChildId], Trace={seq_trace, _Label, _SeqTraceInfo}) ->
-    % pidbang_trace_collector({trace_item, ChildId, Trace});
-    % call_node(ChildId, {trace_item, Trace});
-    ?EMERGENCY("! Trace Message ~p not implemented yet !", [Trace]),
-    ok;
+    io:format("! Trace Message ~p not implemented yet !", [Trace]);
 recv_trace([trace, _ChildId], Trace={seq_trace, _Label, _SeqTraceInfo, _ReportedTS}) ->
-    % pidbang_trace_collector({trace_item, ChildId, Trace});
-    % call_node(ChildId, {trace_item, Trace});
-    ?EMERGENCY("! Trace Message ~p not implemented yet !", [Trace]),
-    ok;
-
-recv_trace([trace, _ChildId], Trace={drop, _NumberOfDroppedItems}) ->
-    % pidbang_trace_collector({trace_item, ChildId, Trace}).
-    % call_node(ChildId, {trace_item, Trace});
-    ?EMERGENCY("! Trace Message ~p not implemented yet !", [Trace]),
-    ok;
+    io:format("! Trace Message ~p not implemented yet !", [Trace]);
+recv_trace([trace, _ChildId], _Trace={drop, NumberOfDroppedItems}) ->
+    io:format("! Remote DBG dropped ~p message. Goanna could not consume fast enough!", [NumberOfDroppedItems]);
 recv_trace(_, _) ->
     ok.
-
+-spec list_active_traces() -> list().
 list_active_traces() ->
     ets:tab2list(tracelist).
 
-
+-spec pull_all_traces() -> list().
 pull_all_traces() ->
     pull_traces(50).
 
+-spec pull_traces(non_neg_integer()) -> list().
 pull_traces(Size) ->
     Nodes = ?MODULE:nodes(),
     F = fun({Node,Cookie,_}, Acc) ->
-        case pull_child_traces(goanna_node_sup:id(Node,Cookie), Size) of
+        case goanna_db:pull(goanna_node_sup:id(Node,Cookie), Size) of
           [] ->
             Acc;
           Traces ->
@@ -267,6 +251,3 @@ pull_traces(Size) ->
         end
     end,
     lists:flatten(lists:foldl(F, [], Nodes)).
-
-pull_child_traces(ChildId, Size) ->
-    goanna_db:pull(ChildId, Size).

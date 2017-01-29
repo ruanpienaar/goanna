@@ -4,7 +4,7 @@
 
 -export([
     start_link/1,
-    init/1, init/2,
+    init/1,
     handle_call/3,
     handle_cast/2,
     handle_info/2,
@@ -15,15 +15,16 @@
 -include_lib("goanna.hrl").
 -define(STATE, ?GOANNA_STATE).
 %%------------------------------------------------------------------------
+-spec start_link({node(), atom(), erlang_distribution | file | tcpip_port}) -> {ok, pid()}.
 start_link({Node, Cookie, Type}) ->
     ChildId = goanna_node_sup:id(Node, Cookie),
-    gen_server:start_link({local, ChildId}, ?MODULE, {Node,Cookie,Type, ChildId}, []).
+    gen_server:start_link({local, ChildId}, ?MODULE, {Node,Cookie,Type,ChildId}, []).
 
-init({Node, Cookie, Type, ChildId}, sync) ->
+%%init({Node, Cookie, Type, ChildId}, sync) ->
     %% First Connect, then allow initialisation to continue...
     %% follow the normal connect attempt route...
-    ok.
-
+    %% ok.
+-spec init({node(), atom(), erlang_distribution | file | tcpip_port, atom()}) -> {ok, #?STATE{}}.
 init({Node, Cookie, Type, ChildId}) ->
     false = process_flag(trap_exit, true),
     State = app_env_to_state(#?STATE{}),
@@ -110,12 +111,13 @@ trace(ChildId, TrcPattern, UpdatedOpts2, Node) ->
         [] ->
             true = goanna_db:store([tracelist, ChildId, TrcPattern], UpdatedOpts2),
             enable_tracing(Node, TrcPattern);
-        [{{ChildId, TrcPattern}, _CreatedDatetime, _Opts}] ->
+        [{{ChildId, TrcPattern}, _Opts}] ->
             {error, {TrcPattern, already_tracing}}
     end.
 
 %%------------------------------------------------------------------------
 %%--- Updating the internal state, based on app_env-----------------------
+-spec handle_call(term(), reference(), #?STATE{}) -> {reply, ok | stop_tracing | {error, unknown_call},  #?STATE{}}.
 handle_call({update_state}, _From, State) ->
     {reply, ok, app_env_to_state(State)};
 %%------------------------------------------------------------------------
@@ -169,7 +171,7 @@ handle_call({trace_item, Trace}, _From, #?STATE{ node=Node,
                                                  trace_active=true,
                                                  connected=Connected,
                                                  type=Type } = State) when TMC >= TMT ->
-    % ?DEBUG("[~p] [~p] Trace message count limit reached...", [?MODULE, Node]),
+    ?DEBUG("[~p] [~p] Trace message count limit reached...", [?MODULE, Node]),
     true=goanna_db:store([trace, State#?STATE.child_id], Trace),
     ok  = disable_all_tracing(Connected, Node, Cookie),
     {ok,_} = clear_tracelist_restart_dbg(Node, Cookie, Type),
@@ -205,11 +207,13 @@ handle_call(Request, _From, State) ->
     ?EMERGENCY("[~p] Unknown handle_call ~p~n~p", [?MODULE, Request, State]),
     {reply, {error, unknown_call}, State}.
 
+-spec handle_cast(term(), #?STATE{}) -> {noreply, #?STATE{}}.
 handle_cast(Msg, State) ->
     ?EMERGENCY("[~p] Unknown handle_cast ~p~n~p", [?MODULE, Msg, State]),
     {noreply, State}.
 %%------------------------------------------------------------------------
 %% Connectivity-----------------------------------------------------------
+-spec handle_info(term(),  #?STATE{}) -> {noreply,  #?STATE{}}.
 handle_info({nodedown, Node}, #?STATE{node=Node} = State) ->
     ?DEBUG("[~p] Node:~p down...", [?MODULE, Node]),
     {noreply, reconnect(State)};
@@ -243,12 +247,14 @@ handle_info(Info, State) ->
     ?EMERGENCY("[~p] Unknown handle_info ~p~n~p", [?MODULE, Info, State]),
     {noreply, State}.
 
+-spec terminate(term(),  #?STATE{}) -> ok.
 terminate(Reason, #?STATE{ node=Node, cookie=Cookie, connected=Connected } = _State) ->
     ?DEBUG("[~p] terminate ~p in ~p", [?MODULE, Reason, goanna_node_sup:id(Node, Cookie)]),
     ok = disable_all_tracing(Connected, Node, Cookie),
     true = goanna_db:delete_node(Node),
     ok.
 
+-spec code_change(term(),  #?STATE{}, term()) -> {ok,  #?STATE{}}.
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 %%------------------------------------------------------------------------
@@ -339,8 +345,7 @@ erlang_distribution_trace_steps(Node, Cookie) ->
     end.
 
 dbg_p(Node) ->
-    Flags = application:get_env(goanna, dbg_p_flags, call),
-    {ok,_MatchDesc} = rpc:call(Node, dbg, p, [all, Flags]).
+    {ok,_MatchDesc} = rpc:call(Node, dbg, p, [all, [call, timestamp]]).
 
 dbg_start(Node) ->
     try
@@ -366,10 +371,10 @@ handler_fun(Node, Cookie, tcpip_port) ->
             ok ->
                 ok;
             stop_tracing ->
-                ok
+            	dbg:stop_clear()
         end
     end};
-handler_fun(Node, Cookie, file) ->
+handler_fun(_Node, _Cookie, file) ->
     {ok, fun(Trace, _) ->
         % case goanna_api:recv_trace([trace, goanna_node_sup:id(Node,Cookie)],Trace) of
         %     ok ->
@@ -416,9 +421,9 @@ enable_tracing(Node, T=#trc_pattern{m=Module,f=Function,a=Arity,ms=Ms}) ->
     ?DEBUG("[~p] [~p] dbg:tpl MatchDesc ~p",
         [?MODULE, Node, MatchDesc]).
 %%------------------------------------------------------------------------
-disable_all_tracing(Connected, Node, Cookie) when Connected=:=false ->
+disable_all_tracing(Connected, _Node, _Cookie) when Connected=:=false ->
     {ok, undefined};
-disable_all_tracing(Connected, Node, Cookie) when Connected=:=true ->
+disable_all_tracing(Connected, Node, _Cookie) when Connected=:=true ->
     ok = disable_tracing(Node, []),
     case rpc:call(Node, dbg, stop_clear, []) of
         ok ->
@@ -430,6 +435,7 @@ disable_all_tracing(Connected, Node, Cookie) when Connected=:=true ->
 
 clear_tracelist_restart_dbg(Node, Cookie, Type) ->
     %% Just make sure dbg, and tracer is always started..
+    %% TODO: actually, maybe only start DBG remotely when needed...( if tracing )
     case dbg_start(Node) of
         {ok, _RemoteDbgPid} ->
             [{Node, Cookie, Type}] = goanna_db:lookup([nodelist, Node]),

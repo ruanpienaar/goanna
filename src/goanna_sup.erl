@@ -21,6 +21,7 @@
 %% API functions
 %% ===================================================================
 
+-spec start_link() -> {ok,pid()}.
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
@@ -28,6 +29,7 @@ start_link() ->
 %% Supervisor callbacks
 %% ===================================================================
 
+-spec init([]) -> {ok,term()}.
 init([]) ->
     goanna_db:init(),
     RestartStrategy = one_for_one,

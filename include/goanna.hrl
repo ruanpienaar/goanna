@@ -1,26 +1,26 @@
--define(DEBUG(Msg),lager:debug(Msg)).
--define(DEBUG(Msg, Args),lager:debug(Msg, Args)).
+-define(DEBUG(Msg),io:format(Msg++"~n")).
+-define(DEBUG(Msg, Args),io:format(Msg++"~n", Args)).
 
--define(INFO(Msg),lager:info(Msg)).
--define(INFO(Msg, Args),lager:info(Msg, Args)).
+-define(INFO(Msg),io:format(Msg++"~n")).
+-define(INFO(Msg, Args),io:format(Msg++"~n", Args)).
 
--define(NOTICE(Msg),lager:notice(Msg)).
--define(NOTICE(Msg, Args),lager:notice(Msg, Args)).
+-define(NOTICE(Msg),io:format(Msg++"~n")).
+-define(NOTICE(Msg, Args),io:format(Msg++"~n", Args)).
 
--define(WARNING(Msg),lager:warning(Msg)).
--define(WARNING(Msg, Args),lager:warning(Msg, Args)).
+-define(WARNING(Msg),io:format(Msg++"~n")).
+-define(WARNING(Msg, Args),io:format(Msg++"~n", Args)).
 
--define(ERROR(Msg),lager:error(Msg)).
--define(ERROR(Msg, Args),lager:error(Msg, Args)).
+-define(ERROR(Msg),io:format(Msg++"~n")).
+-define(ERROR(Msg, Args),io:format(Msg++"~n", Args)).
 
--define(CRITICAL(Msg),lager:critical(Msg)).
--define(CRITICAL(Msg, Args),lager:critical(Msg, Args)).
+-define(CRITICAL(Msg),io:format(Msg++"~n")).
+-define(CRITICAL(Msg, Args),io:format(Msg++"~n", Args)).
 
--define(ALERT(Msg),lager:alert(Msg)).
--define(ALERT(Msg, Args),lager:alert(Msg, Args)).
+-define(ALERT(Msg),io:format(Msg++"~n")).
+-define(ALERT(Msg, Args),io:format(Msg++"~n", Args)).
 
--define(EMERGENCY(Msg),lager:emergency(Msg)).
--define(EMERGENCY(Msg, Args),lager:emergency(Msg, Args)).
+-define(EMERGENCY(Msg),io:format(Msg++"~n")).
+-define(EMERGENCY(Msg, Args),io:format(Msg++"~n", Args)).
 
 -record(trc_pattern,{
     m,
@@ -28,8 +28,6 @@
     a,
     ms
 }).
-
-
 
 -define(GOANNA_STATE, goanna_state).
 -record(?GOANNA_STATE,
