@@ -464,7 +464,7 @@ list_active_traces() ->
 %%------------------------------------------------------------------------
 
 setup() ->
-    [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok] =
+    [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok] =
         goanna_api:start(),
     {ok, Host} = inet:gethostname(),
     make_distrib("tests@"++Host, shortnames),
@@ -473,25 +473,25 @@ setup() ->
     ok.
 
 cleanup(_) ->
-    [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok] =
+    [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok] =
         goanna_api:stop(),
     stop_distrib(),
     ok.
 
-    -spec make_distrib( NodeName::string()|atom(), NodeType::shortnames | longnames) ->
-        {ok, ActualNodeName::atom} | {error, Reason::term()}.
-    make_distrib(NodeName, NodeType) when is_list(NodeName) ->
-        make_distrib(erlang:list_to_atom(NodeName), NodeType);
-    make_distrib(NodeName, NodeType) ->
-        case node() of
-            'nonode@nohost' ->
-                [] = os:cmd("epmd -daemon"),
-                case net_kernel:start([NodeName, NodeType]) of
-                    {ok, _Pid} -> node()
-                end;
-            CurrNode ->
-                CurrNode
-        end.
+-spec make_distrib( NodeName::string()|atom(), NodeType::shortnames | longnames) ->
+    {ok, ActualNodeName::atom} | {error, Reason::term()}.
+make_distrib(NodeName, NodeType) when is_list(NodeName) ->
+    make_distrib(erlang:list_to_atom(NodeName), NodeType);
+make_distrib(NodeName, NodeType) ->
+    case node() of
+        'nonode@nohost' ->
+            [] = os:cmd("epmd -daemon"),
+            case net_kernel:start([NodeName, NodeType]) of
+                {ok, _Pid} -> node()
+            end;
+        CurrNode ->
+            CurrNode
+    end.
 
 stop_distrib()->
     net_kernel:stop().

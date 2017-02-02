@@ -5,6 +5,7 @@
     start/0, stop/0,
     add_node/3,
     remove_node/1,
+    remove_goanna_callbacks/1,
     nodes/0,
     update_default_trace_options/1,
     set_data_retrival_method/1
@@ -34,8 +35,7 @@
 start() -> [ ok = application:ensure_started(APP) || APP <- apps() ].
 stop() -> [ ok = application:ensure_started(APP) || APP <- lists:reverse(apps()) ].
 apps() ->
-    [asn1, crypto, public_key, ssl, compiler, inets, syntax_tools, sasl,
-         goldrush, lager, color, stout, hawk, goanna].
+    [asn1, crypto, public_key, ssl, compiler, inets, syntax_tools, sasl, hawk, goanna].
 %%------------------------------------------------------------------------
 
 %%------------------------------------------------------------------------
@@ -82,6 +82,12 @@ remove_node(Node) when is_atom(Node) ->
     hawk:remove_node(Node);
 remove_node(_) ->
     {error, badarg}.
+
+-spec remove_goanna_callbacks(node()) -> boolean().
+remove_goanna_callbacks(Node) ->
+    hawk:remove_connect_callback(Node, goanna_connect)=={ok,updated}
+    andalso
+    hawk:remove_disconnect_callback(Node, goanna_disconnect)=={ok,updated}.
 
 -spec update_default_trace_options(list(tuple())) -> ok.
 update_default_trace_options(Opts) when is_list(Opts) ->
