@@ -265,10 +265,10 @@ set_data_retrival_method_validation() ->
     {ok, Host} = inet:gethostname(),
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
-    GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
+    _GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
     %% Add a node
-    {ok, GoannaNodePid} =
+    {ok, _GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
     timer:sleep(1),
     [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
@@ -290,7 +290,7 @@ trace() ->
     GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
     %% Add a node
-    {ok, GoannaNodePid} =
+    {ok, _GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
     timer:sleep(1),
     [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
@@ -306,7 +306,7 @@ trace() ->
     %% Trace some
     true = ([] == goanna_api:pull_all_traces()),
     ok = goanna_test_module:function(),
-    timer:sleep(50), %% Wait at least 100Msec to retrieve the traces
+    timer:sleep(50), %% Wait at least 50Msec for traces to be stored
     ?assert([] =/= goanna_api:pull_all_traces()),
 
     ok = goanna_api:remove_node(Node).
@@ -317,10 +317,10 @@ trace_validation() ->
     {ok, Host} = inet:gethostname(),
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
-    GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
+    _GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
     %% Add a node
-    {ok, GoannaNodePid} =
+    {ok, _GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
     timer:sleep(1),
     [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
@@ -336,7 +336,8 @@ trace_validation() ->
     {error, badarg} = goanna_api:trace(bla, bla, bla),
     {error, badarg} = goanna_api:trace(bla, bla, bla, bla),
 
-    ok = goanna_api:remove_node(Node).
+    ok = goanna_api:remove_node(Node),
+    [] = goanna_api:nodes().
 
 stop_trace() ->
     %% There should be no nodes, at first.
@@ -347,13 +348,12 @@ stop_trace() ->
     GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
     %% Add a node
-    {ok, GoannaNodePid} =
+    {ok, _GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
     timer:sleep(1),
     [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     ok = goanna_api:update_default_trace_options([{time, 1000}]),
-    ok = goanna_api:trace(goanna_test_module, function),
 
     %% Change the default values, Then Check the newly set values
     {ok,[{time, 1000}]} = application:get_env(goanna, default_trace_options),
@@ -361,9 +361,16 @@ stop_trace() ->
     #?GOANNA_STATE{ trace_msg_total=false,
                     trace_time=1000 } = GoannaState2,
 
+    % ok = goanna_api:trace(goanna_test_module, function),
+    ok = goanna_api:set_data_retrival_method(pull),
+    rpc:call(Node, goanna_test_module, module_info, []),
+    ok = goanna_api:trace(goanna_test_module),
+    ?assert([] =/= goanna_api:list_active_traces()),
+
+    timer:sleep(10), %% Wait at least 100Msec for traces to be stored
     %% Trace some, set it for 1s and then stop
     ok = goanna_test_module:function(),
-    timer:sleep(100), %% Wait at least 100Msec to retrieve the traces
+    timer:sleep(10), %% Wait at least 100Msec for traces to be stored
     ?assert([] =/= goanna_api:pull_all_traces()),
 
     %stop it
@@ -394,23 +401,26 @@ reached_max_stop_trace() ->
     [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     %% Disable based on time (ms)...
-    ok = goanna_api:update_default_trace_options([{time, 1000}, {messages,100}]),
+    ok = goanna_api:update_default_trace_options([{time, 100}, {messages,100}]),
     ok = goanna_api:trace(goanna_test_module, function),
 
     %% Conveniently wait
-    timer:sleep(1000),
+    timer:sleep(125),
     [] = ets:tab2list(tracelist),
     [] = goanna_api:list_active_traces(),
 
     %% Disable based on message count...
     ok = goanna_api:update_default_trace_options([{time, 100000}, {messages,1}]),
     ok = goanna_api:trace(goanna_test_module, function),
-    ok = goanna_test_module:function(),
 
-    timer:sleep(50),
+    ok = goanna_test_module:function(),
+    % ok = goanna_test_module:function(),
+
+    timer:sleep(10),
     Trcs = goanna_api:pull_all_traces(),
     io:format("~p~n", [length(Trcs)]),
     ?assert([] =/= Trcs),
+
     [] = ets:tab2list(tracelist),
     [] = goanna_api:list_active_traces(),
 
@@ -496,5 +506,5 @@ make_distrib(NodeName, NodeType) ->
 stop_distrib()->
     net_kernel:stop().
 
-forward(Node, TraceMessage) ->
+forward(_Node, _TraceMessage) ->
     ok.

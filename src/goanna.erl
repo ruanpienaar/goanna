@@ -4,6 +4,7 @@
 -mode(compile).
 -include_lib("goanna.hrl").
 
+-spec main(term()) -> term().
 main([]) ->
     main(["-s"]);
 
@@ -72,7 +73,7 @@ startup_nodes([H|T]) ->
     {ok, _} = goanna_api:add_node(Node, Cookie, Type),
     startup_nodes(T).
 
-wait_for_nodes(Nodes, 0) ->
+wait_for_nodes(_Nodes, 0) ->
 	?CRITICAL("Wait was too long, nodes haven't arrived", []),
 	timer:sleep(50),
 	erlang:halt(0);
@@ -81,7 +82,7 @@ wait_for_nodes(Nodes, Count) ->
 	%%?DEBUG("Nodes known to goanna: ~p~n", [Nodes]),
 	case length(GN)==length(Nodes) of
 		true ->
-			Pids = [ whereis(N) || [{node,N},{cookie,C},{_,_}] <- Nodes],
+			Pids = [ whereis(N) || [{node,N},{cookie,_C},{_,_}] <- Nodes],
 			case lists:all(fun(undefined) -> false; (P) when is_pid(P) -> true end, Pids) of
 				true ->
 					?INFO("Nodes are alive now..~p~n", [Pids]),

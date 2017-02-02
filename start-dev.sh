@@ -12,5 +12,9 @@ else
 fi
 
 cd `dirname $0`
-erl +A 1 +K true $DIST_NAME $NAME -config $PWD/sys.config -pa $PWD/ebin $PWD/deps/*/ebin $PWD/test -setcookie goanna -s goanna_api start -noshell -noinput -detached -proto_dist hawk_tcp
-#-hidden
+#run_erl goanna log/ `erl +A 1 +K true $DIST_NAME $NAME -config $PWD/sys.config -pa $PWD/ebin $PWD/deps/*/ebin $PWD/test -setcookie goanna -s goanna_api start -proto_dist hawk_tcp -hidden`
+#echo $?
+
+
+erl +A 1 +K true $DIST_NAME $NAME -boot start_sasl -config $PWD/sys.config -pa $PWD/ebin $PWD/deps/*/ebin $PWD/test -setcookie goanna -s goanna_api start -proto_dist hawk_tcp -hidden 
+#-noshell -noinput -detached 
