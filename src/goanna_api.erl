@@ -4,6 +4,7 @@
 -export([
     start/0, stop/0,
     add_node/3,
+    add_node_callbacks/3,
     remove_node/1,
     remove_goanna_callbacks/1,
     nodes/0,
@@ -59,26 +60,18 @@ add_node(Node, Cookie, Type) when is_atom(Node),
                                   (Type == erlang_distribution orelse
                                    Type == file orelse
                                    Type == tcpip_port) ->
-    ConnectedCallBack = [{goanna_connect, fun() -> {ok,_}=goanna_node_sup:start_child(Node, Cookie, Type) end}],
-    DisconnCallBack = [{goanna_disconnect, fun() -> ok=goanna_node_sup:delete_child(Node) end}],
-    case hawk:node_exists(Node) of
-        {ok, Pid, Callbacks} ->
-            case lists:member(goanna_connect, Callbacks) andalso lists:member(goanna_disconnect, Callbacks) of
-                true ->
-                    ok;
-                false ->
-                    [{CName,CF}] = ConnectedCallBack,
-                    [{DName,DCF}] = DisconnCallBack,
-                    CF(),
-                    {ok,updated} = hawk:add_connect_callback(Node, {CName,CF}),
-                    {ok,updated} = hawk:add_disconnect_callback(Node, {DName,DCF})
-            end,
-            {error,{already_started,Pid}};
-        false ->
-            hawk:add_node(Node, Cookie, ConnectedCallBack, DisconnCallBack)
-    end;
+    hawk:add_node(Node, Cookie,
+        [{goanna_connect, fun() -> {ok,_}=goanna_node_sup:start_child(Node, Cookie, Type) end}],
+        [{goanna_disconnect, fun() -> ok=goanna_node_sup:delete_child(Node) end}]
+    );
 add_node(_, _, _) ->
     {error, badarg}.
+
+-spec add_node_callbacks(node(), list(), list()) -> {ok,updated}.
+add_node_callbacks(Node, ConnectedCallBack, DisconnCallBack) ->
+    {ok, _Pid, _Callbacks} = hawk:node_exists(Node),
+    {ok,updated} = hawk:add_connect_callback(Node, ConnectedCallBack),
+    {ok,updated} = hawk:add_disconnect_callback(Node, DisconnCallBack).
 
 -spec remove_node(node()) -> ok | {error, no_such_node}.
 remove_node(Node) when is_atom(Node) ->
