@@ -4,11 +4,6 @@ notifications:
 before_script:
   kerl list installations
 otp_release:
-  - R12B-5
-  - R13B04
-  - R14B04
-  - R15B03-1
-  - R16B03-1
   - 17.5
   - 18.2
   - 19.2
