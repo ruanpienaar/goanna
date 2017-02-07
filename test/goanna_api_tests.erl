@@ -401,7 +401,7 @@ reached_max_stop_trace() ->
     ok = goanna_api:trace(goanna_test_module, function),
 
     %% Conveniently wait
-    timer:sleep(125),
+    timer:sleep(225),
     [] = ets:tab2list(tracelist),
     [] = goanna_api:list_active_traces(),
 
