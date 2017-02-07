@@ -73,8 +73,10 @@ add_node_callbacks(Node, Cookie) ->
 
 add_node_callbacks(Node, Cookie, Type) ->
     {ok, _Pid, _Callbacks} = hawk:node_exists(Node),
-    {ok,updated} = hawk:add_connect_callback(Node, goanna_connect_callbacks(Node, Cookie, Type)),
-    {ok,updated} = hawk:add_disconnect_callback(Node, goanna_disconnect_callbacks(Node)).
+    [{CN,CF}] = goanna_connect_callbacks(Node, Cookie, Type),
+    [{DN,DF}] = goanna_disconnect_callbacks(Node),
+    {ok,updated} = hawk:add_connect_callback(Node, {CN,CF}),
+    {ok,updated} = hawk:add_disconnect_callback(Node, {DN,DF}).
 
 goanna_connect_callbacks(Node, Cookie, Type) ->
     [{goanna_connect, fun() -> {ok,_}=goanna_node_sup:start_child(Node, Cookie, Type) end}].

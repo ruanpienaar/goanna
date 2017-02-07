@@ -200,7 +200,7 @@ update_default_trace_options_validation() ->
     %% Add a node
     {ok, _GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    timer:sleep(1),
+    timer:sleep(10),
     [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
 
     %% Change the default values, Then Check the newly set values
