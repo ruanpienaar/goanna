@@ -41,6 +41,8 @@ goanna allows you to easily specify nodes either in the command line, or in the 
 Goanna uses [hawk](https://github.com/ruanpienaar/hawk) for managing remote node connectivity.
 Hawk will try and reconnect nodes that have disconnected and re-apply previous traces.
 This is useful in testing/debugging scenarios where the nodes are ephemeral or short lived due to an issue.
+Hawk will Only work with OTP Erlang versions with map support, and
+therefore, the same for goanna.
 
 Beam shell example:
 ```Erlang
