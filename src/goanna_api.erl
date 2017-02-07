@@ -6,6 +6,7 @@
     add_node/3,
     add_node_callbacks/2, add_node_callbacks/3,
     remove_node/1,
+    remove_goanna_node/1,
     remove_goanna_callbacks/1,
     nodes/0,
     update_default_trace_options/1,
@@ -89,6 +90,11 @@ remove_node(Node) when is_atom(Node) ->
     hawk:remove_node(Node);
 remove_node(_) ->
     {error, badarg}.
+
+%%TODO: test
+-spec remove_goanna_node(node()) -> ok | {error, no_such_node}.
+remove_goanna_node(Node) ->
+    ok=goanna_node_sup:delete_child(Node).
 
 -spec remove_goanna_callbacks(node()) -> boolean().
 remove_goanna_callbacks(Node) ->
