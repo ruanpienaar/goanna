@@ -16,7 +16,7 @@
 %% Trace Api
 -export([
     trace/1, trace/2, trace/3, trace/4,
-    trc/1,
+    trc/1, trc/2,
     trace_modules/1,
     stop_trace/0, stop_trace/1, stop_trace/2, stop_trace/3,
     clear_all_traces/0,
