@@ -163,8 +163,12 @@ trace(_,_,_,_) ->
 trc(Str) when is_list(Str) ->
     %% http://erldocs.com/current/erts/erlang.html?i=1&search=erlang:trace_pa#trace_pattern/3
     %% not really using Flags, with my DBG implementation yet..
+    trc(Str, []).
+
+-spec trc(string(), non_empty_list()) -> ok.
+trc(Str, Opts) ->
     {{M,F,A},MatchSpec,[_Flag]} = redbug_msc:transform(Str),
-    cluster_foreach_call({trace, [], [#trc_pattern{m=M,f=F,a=A,ms=MatchSpec}]}).
+    cluster_foreach_call({trace, Opts, [#trc_pattern{m=M,f=F,a=A,ms=MatchSpec}]}).
 
 -spec trace_modules(list( atom() )) -> ok.
 trace_modules(Modules) ->
