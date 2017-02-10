@@ -165,7 +165,7 @@ trc(Str) when is_list(Str) ->
     %% not really using Flags, with my DBG implementation yet..
     trc(Str, []).
 
--spec trc(string(), non_empty_list()) -> ok.
+-spec trc(string(), nonempty_list()) -> ok.
 trc(Str, Opts) ->
     {{M,F,A},MatchSpec,[_Flag]} = redbug_msc:transform(Str),
     cluster_foreach_call({trace, Opts, [#trc_pattern{m=M,f=F,a=A,ms=MatchSpec}]}).
