@@ -40,7 +40,7 @@ start() -> [ ok = application:ensure_started(APP) || APP <- apps() ].
 stop() -> [ ok = application:ensure_started(APP) || APP <- lists:reverse(apps()) ].
 -spec apps() -> list().
 apps() ->
-    [asn1, crypto, public_key, ssl, compiler, inets, syntax_tools, sasl, hawk, goanna].
+    [asn1, crypto, public_key, ssl, compiler, inets, syntax_tools, sasl, kakapo, hawk, goanna].
 %%------------------------------------------------------------------------
 
 %%------------------------------------------------------------------------

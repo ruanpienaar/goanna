@@ -14,6 +14,7 @@
                   inets,
                   syntax_tools,
                   sasl,
+                  kakapo,
                   hawk
                  ]},
   {mod, { goanna_app, []}},
