@@ -375,14 +375,15 @@ handler_fun(Node, Cookie, tcpip_port) ->
         end
     end};
 handler_fun(_Node, _Cookie, file) ->
-    {ok, fun(Trace, _) ->
+    {ok, fun(_Trace, _) ->
         % case goanna_api:recv_trace([trace, goanna_node_sup:id(Node,Cookie)],Trace) of
         %     ok ->
         %         ok;
         %     stop_tracing ->
         %         ok
         % end
-        io:format("FILE TRACE: ~p\n", [Trace])
+        %%io:format("FILE TRACE: ~p\n", [Trace])
+        ok
     end};
 handler_fun(Node, Cookie, erlang_distribution) ->
     FunStr = lists:flatten(io_lib:format(

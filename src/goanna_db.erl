@@ -1,7 +1,5 @@
 -module (goanna_db).
--export ([
-          check_value/0,
-          init/0,
+-export ([init/0,
           init_node/1,
           node_table_exists/2,
           nodes/0,
@@ -15,16 +13,6 @@
           pull/1,
           pull/2
 ]).
-
--ifdef(VSN).
--define(X(), io:format("...")).
--else.
--define(X(), io:format("else")).
--endif.
-
--spec check_value() -> ok.
-check_value() ->
-    ?X().
 
 %% API
 -spec init() -> relay_tcpip_allocated_ports.

@@ -136,7 +136,7 @@ trace(Module) when is_atom(Module) ->
         cluster_foreach_call({trace, [], [#trc_pattern{m=Module}]})
     catch
         C:E ->
-            io:format("trace failed ~p ~p", [C,E])
+            error_logger:error_report([{module,?MODULE},C,E,erlang:get_stacktrace()])
     end;
 trace(_) ->
     {error, badarg}.

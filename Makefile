@@ -1,7 +1,7 @@
 .PHONY: compile get-deps update-deps test clean deep-clean
 
 compile: get-deps update-deps
-	@./rebar compile escriptize
+	@./rebar compile #escriptize
 
 get-deps:
 	@./rebar get-deps
