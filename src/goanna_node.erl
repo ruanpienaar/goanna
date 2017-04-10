@@ -85,7 +85,7 @@ do_rem_conn(Node, Cookie) ->
 
 do_monitor_node(Node, ConnectAttemptTref) ->
     true = erlang:monitor_node(Node, true),
-    ?NOTICE(" [~p] ~p !!! startup complete !!! \n", [?MODULE, Node]),
+    %%?NOTICE(" [~p] ~p !!! startup complete !!! \n", [?MODULE, Node]),
     case ConnectAttemptTref of
         undefined ->
             ok;
@@ -171,7 +171,7 @@ handle_call({trace_item, Trace}, _From, #?STATE{ node=Node,
                                                  trace_active=true,
                                                  connected=Connected,
                                                  type=Type } = State) when TMC >= TMT ->
-    ?DEBUG("[~p] [~p] Trace message count limit reached...", [?MODULE, Node]),
+    %%?DEBUG("[~p] [~p] Trace message count limit reached...", [?MODULE, Node]),
     true=goanna_db:store([trace, State#?STATE.child_id], Trace),
     ok  = disable_all_tracing(Connected, Node, Cookie),
     {ok,_} = clear_tracelist_restart_dbg(Node, Cookie, Type),
@@ -186,11 +186,11 @@ handle_call({stop_trace, TrcPattern}, _From, #?STATE{ node = Node, cookie = Cook
 	{reply, ok, State};
 handle_call(stop_all_trace_patterns, _From, #?STATE{node=Node,
                                                     cookie=Cookie,
-                                                    trace_msg_count=TMC,
+                                                    trace_msg_count=_TMC,
                                                     connected=Connected,
                                                     type=Type} = State) ->
     %% TODO: why is this crashing?
-    ?DEBUG("Stop trace - Total Message Count:~p~n", [TMC]),
+    %%?DEBUG("Stop trace - Total Message Count:~p~n", [TMC]),
     ok = disable_all_tracing(Connected, Node, Cookie),
     {ok,_} = clear_tracelist_restart_dbg(Node, Cookie, Type),
     ok = cancel_timer(State#?STATE.trace_timer_tref),
@@ -204,21 +204,21 @@ handle_call({clear_db_traces}, _From, #?STATE{child_id=ChildId} = State) ->
     true = goanna_db:truncate_traces(ChildId),
     {reply, ok, State};
 handle_call(Request, _From, State) ->
-    ?EMERGENCY("[~p] Unknown handle_call ~p~n~p", [?MODULE, Request, State]),
-    {reply, {error, unknown_call}, State}.
+    %%?EMERGENCY("[~p] Unknown handle_call ~p~n~p", [?MODULE, Request, State]),
+    {reply, {error, unknown_call, Request}, State}.
 
 -spec handle_cast(term(), #?STATE{}) -> {noreply, #?STATE{}}.
-handle_cast(Msg, State) ->
-    ?EMERGENCY("[~p] Unknown handle_cast ~p~n~p", [?MODULE, Msg, State]),
+handle_cast(_Msg, State) ->
+    %%?EMERGENCY("[~p] Unknown handle_cast ~p~n~p", [?MODULE, Msg, State]),
     {noreply, State}.
 %%------------------------------------------------------------------------
 %% Connectivity-----------------------------------------------------------
 -spec handle_info(term(),  #?STATE{}) -> {noreply,  #?STATE{}}.
 handle_info({nodedown, Node}, #?STATE{node=Node} = State) ->
-    ?DEBUG("[~p] Node:~p down...", [?MODULE, Node]),
+    %%?DEBUG("[~p] Node:~p down...", [?MODULE, Node]),
     {noreply, reconnect(State)};
-handle_info(reconnect, #?STATE{node=Node} = State) ->
-    ?DEBUG("[~p] attempting to reconnect to ~p...", [?MODULE, Node]),
+handle_info(reconnect, #?STATE{node=_Node} = State) ->
+    %%?DEBUG("[~p] attempting to reconnect to ~p...", [?MODULE, Node]),
     {ok, NewState} = est_rem_conn(State),
     {noreply, NewState};
 %%------------------------------------------------------------------------
@@ -231,25 +231,25 @@ handle_info({push_data, Mod}, #?STATE{node=Node, child_id=Tbl} = State) ->
 handle_info({'EXIT', _From, done}, State) ->
     {noreply, State};
 handle_info({'EXIT', From, Reason}, State) when From == self() ->
-    ?EMERGENCY("EXIT FROM - ~p - ~p", [From, Reason]),
+    %%?EMERGENCY("EXIT FROM - ~p - ~p", [From, Reason]),
     {stop, Reason, State};
-handle_info({'EXIT', From, Reason}, State) ->
+handle_info({'EXIT', _From, _Reason}, State) ->
     % [alert] <0.188.0> sent EXIT normal
     % Some of these normals, are the port from dbg.
     % when using type==tcpip_port, dbg creates 2 important items,
     % 1) the dbg loop pid 2) the port for the tcp traffic, this second
     % items creates the normal crash, when you stop-start dbg.
-    ?DEBUG("~p sent EXIT ~p", [From, Reason]),
+    %%?DEBUG("~p sent EXIT ~p", [From, Reason]),
     {noreply, State};
 %%------------------------------------------------------------------------
 %%---Shoudn't happen, but hey... let's see ...----------------------------
-handle_info(Info, State) ->
-    ?EMERGENCY("[~p] Unknown handle_info ~p~n~p", [?MODULE, Info, State]),
+handle_info(_Info, State) ->
+    %%?EMERGENCY("[~p] Unknown handle_info ~p~n~p", [?MODULE, Info, State]),
     {noreply, State}.
 
 -spec terminate(term(),  #?STATE{}) -> ok.
-terminate(Reason, #?STATE{ node=Node, cookie=Cookie, connected=Connected } = _State) ->
-    ?DEBUG("[~p] terminate ~p in ~p", [?MODULE, Reason, goanna_node_sup:id(Node, Cookie)]),
+terminate(_Reason, #?STATE{ node=Node, cookie=Cookie, connected=Connected } = _State) ->
+    %%?DEBUG("[~p] terminate ~p in ~p", [?MODULE, Reason, goanna_node_sup:id(Node, Cookie)]),
     ok = disable_all_tracing(Connected, Node, Cookie),
     true = goanna_db:delete_node(Node),
     ok.
@@ -262,7 +262,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% after X amount of retries...
 -spec reconnect(#?STATE{}) -> #?STATE{}.
 reconnect(#?STATE{ connect_attempts = Attempts, max_reconnecion_attempts = Max } = State) when Attempts >= Max ->
-    ?INFO("Too many connection attempts, removing node ~p", [State#?STATE.node]),
+    %%?INFO("Too many connection attempts, removing node ~p", [State#?STATE.node]),
     spawn(fun() -> goanna_api:remove_node(State#?STATE.node) end),
     State#?STATE{connected=false};
 reconnect(#?STATE{ connect_attempts = Attempts } = State) when Attempts > 10 ->
@@ -295,11 +295,11 @@ tcpip_port_trace_steps(Node, Cookie) ->
                 {ok, RemoteDbgPid} ->
                     ok
             end,
-            {ok,MatchDesc} = dbg_p(Node),
+            {ok,_MatchDesc} = dbg_p(Node),
             {ok, Fun} = handler_fun(Node, Cookie, tcpip_port),
             CLientPid = dbg:trace_client(ip, {RelayHost, RelayPort}, {Fun, ok}),
             link(CLientPid),
-            ?DEBUG("[~p] Node:~p MatchDesc:~p", [?MODULE, Node, MatchDesc]),
+            %%?DEBUG("[~p] Node:~p MatchDesc:~p", [?MODULE, Node, MatchDesc]),
             {ok, RemoteDbgPid};
         Error ->
             Error
@@ -315,11 +315,11 @@ file_port_trace_steps(Node, Cookie) ->
                 {ok, RemoteDbgPid} ->
                     ok
             end,
-            {ok,MatchDesc} = dbg_p(Node),
+            {ok,_MatchDesc} = dbg_p(Node),
             {ok, Fun} = handler_fun(Node, Cookie, file),
             CLientPid = dbg:trace_client(file, "/Users/rp/hd2/code/goanna/tracefile", {Fun, ok}),
             link(CLientPid),
-            ?DEBUG("[~p] Node:~p MatchDesc:~p", [?MODULE, Node, MatchDesc]),
+            %%?DEBUG("[~p] Node:~p MatchDesc:~p", [?MODULE, Node, MatchDesc]),
             {ok, RemoteDbgPid};
         Error ->
             Error
@@ -337,8 +337,8 @@ erlang_distribution_trace_steps(Node, Cookie) ->
                 {ok, Node} ->
                     ok
             end,
-            {ok,MatchDesc} = dbg_p(Node),
-            ?DEBUG("[~p] Node:~p MatchDesc:~p", [?MODULE, Node, MatchDesc]),
+            {ok,_MatchDesc} = dbg_p(Node),
+            %%?DEBUG("[~p] Node:~p MatchDesc:~p", [?MODULE, Node, MatchDesc]),
             {ok, RemoteDbgPid};
         Error ->
             Error
@@ -356,10 +356,10 @@ dbg_start(Node) ->
         error:{badmatch,{badrpc,{'EXIT',
                 {{case_clause,DbgPid},_}
               }}} ->
-            ?DEBUG("[~p] DBG START Process:~p~n", [?MODULE, DbgPid]),
+            %%?DEBUG("[~p] DBG START Process:~p~n", [?MODULE, DbgPid]),
             {ok, DbgPid};
-        C:E ->
-            ?ALERT("[~p] DBG START failed ~p", [?MODULE, {C,E}]),
+        _C:_E ->
+            %%?ALERT("[~p] DBG START failed ~p", [?MODULE, {C,E}]),
             {ok, undefined}
     end.
 
@@ -401,26 +401,31 @@ handler_fun(Node, Cookie, erlang_distribution) ->
 %%------------------------------------------------------------------------
 enable_tracing(_Node, false) ->
     {error, nothing_to_trace};
-enable_tracing(Node, T=#trc_pattern{m=Module,f=undefined,a=undefined,ms=undefined}) ->
-    ?DEBUG("[~p] [~p] enable_tracing:~p~p~n", [?MODULE, {Module}, Node, T]),
-    {ok, MatchDesc} = rpc:call(Node, dbg, tpl, [Module, cx]),
-    ?DEBUG("[~p] [~p] dbg:tpl MatchDesc ~p",
-        [?MODULE, Node, MatchDesc]);
-enable_tracing(Node, T=#trc_pattern{m=Module,f=Function,a=undefined,ms=undefined}) ->
-    ?DEBUG("[~p] [~p] enable_tracing:~p~p~n", [?MODULE, {Module,Function}, Node, T]),
-    {ok, MatchDesc} = rpc:call(Node, dbg, tpl, [Module, Function, cx]),
-    ?DEBUG("[~p] [~p] dbg:tpl MatchDesc ~p",
-        [?MODULE, Node, MatchDesc]);
-enable_tracing(Node, T=#trc_pattern{m=Module,f=Function,a=Arity,ms=undefined}) ->
-    ?DEBUG("[~p] [~p] enable_tracing:~p~p~n", [?MODULE, {Module,Function,Arity}, Node, T]),
-    {ok, MatchDesc} = rpc:call(Node, dbg, tpl,[Module, Function, Arity, cx]),
-    ?DEBUG("[~p] [~p] dbg:tpl MatchDesc ~p",
-        [?MODULE, Node, MatchDesc]);
-enable_tracing(Node, T=#trc_pattern{m=Module,f=Function,a=Arity,ms=Ms}) ->
-    ?DEBUG("[~p] [~p] enable_tracing:~p~p~n", [?MODULE, {Module,Function,Arity,Ms}, Node, T]),
-    {ok, MatchDesc} = rpc:call(Node, dbg, tpl,[Module, Function, Arity, Ms]),
-    ?DEBUG("[~p] [~p] dbg:tpl MatchDesc ~p",
-        [?MODULE, Node, MatchDesc]).
+enable_tracing(Node, _T=#trc_pattern{m=Module,f=undefined,a=undefined,ms=undefined}) ->
+    %%?DEBUG("[~p] [~p] enable_tracing:~p~p~n", [?MODULE, {Module}, Node, T]),
+    {ok, _MatchDesc} = rpc:call(Node, dbg, tpl, [Module, cx]),
+    %%?DEBUG("[~p] [~p] dbg:tpl MatchDesc ~p",
+        % [?MODULE, Node, MatchDesc]);
+    ok;
+enable_tracing(Node, _T=#trc_pattern{m=Module,f=Function,a=undefined,ms=undefined}) ->
+    %%?DEBUG("[~p] [~p] enable_tracing:~p~p~n", [?MODULE, {Module,Function}, Node, T]),
+    {ok, _MatchDesc} = rpc:call(Node, dbg, tpl, [Module, Function, cx]),
+    %%?DEBUG("[~p] [~p] dbg:tpl MatchDesc ~p",
+        % [?MODULE, Node, MatchDesc]);
+    ok;
+enable_tracing(Node, _T=#trc_pattern{m=Module,f=Function,a=Arity,ms=undefined}) ->
+    %%?DEBUG("[~p] [~p] enable_tracing:~p~p~n", [?MODULE, {Module,Function,Arity}, Node, T]),
+    {ok, _MatchDesc} = rpc:call(Node, dbg, tpl,[Module, Function, Arity, cx]),
+    %%?DEBUG("[~p] [~p] dbg:tpl MatchDesc ~p",
+        % [?MODULE, Node, MatchDesc]);
+    ok;
+enable_tracing(Node, _T=#trc_pattern{m=Module,f=Function,a=Arity,ms=Ms}) ->
+    %%?DEBUG("[~p] [~p] enable_tracing:~p~p~n", [?MODULE, {Module,Function,Arity,Ms}, Node, T]),
+    {ok, _MatchDesc} = rpc:call(Node, dbg, tpl,[Module, Function, Arity, Ms]),
+    %%?DEBUG("[~p] [~p] dbg:tpl MatchDesc ~p",
+        % [?MODULE, Node, MatchDesc]).
+    ok.
+
 %%------------------------------------------------------------------------
 disable_all_tracing(Connected, _Node, _Cookie) when Connected=:=false ->
     {ok, undefined};
@@ -430,7 +435,7 @@ disable_all_tracing(Connected, Node, _Cookie) when Connected=:=true ->
         ok ->
             ok;
         {badrpc,nodedown} ->
-            ?CRITICAL("Tried stopping DBG, but node has gone..."),
+            % ?CRITICAL("Tried stopping DBG, but node has gone..."),
             ok
     end.
 
@@ -447,40 +452,44 @@ clear_tracelist_restart_dbg(Node, Cookie, Type) ->
     end.
 %%------------------------------------------------------------------------
 disable_tracing(Node, []) ->
-    ?DEBUG("[~p] [~p] Disable all tracing", [?MODULE, Node]),
+    %%?DEBUG("[~p] [~p] Disable all tracing", [?MODULE, Node]),
     case rpc:call(Node, dbg, ctpl, []) of
         {badrpc, nodedown} ->
             ok;
-        {ok, MatchDesc} ->
-            ?DEBUG("[~p] [~p] dbg:ctpl MatchDesc ~p",
-                [?MODULE, Node, MatchDesc])
+        {ok, _MatchDesc} ->
+            %%?DEBUG("[~p] [~p] dbg:ctpl MatchDesc ~p",
+                % [?MODULE, Node, MatchDesc])
+            ok
     end;
-disable_tracing(Node, T=#trc_pattern{m=Module,f=undefined,a=undefined}) ->
-    ?DEBUG("[~p] [~p] Disable ~p tracing", [?MODULE, Node, T]),
+disable_tracing(Node, _T=#trc_pattern{m=Module,f=undefined,a=undefined}) ->
+    %%?DEBUG("[~p] [~p] Disable ~p tracing", [?MODULE, Node, T]),
     case rpc:call(Node, dbg, ctpl, [Module]) of
         {badrpc, nodedown} ->
             ok;
-        {ok, MatchDesc} ->
-            ?DEBUG("[~p] [~p] dbg:ctpl MatchDesc ~p",
-                [?MODULE, Node, MatchDesc])
+        {ok, _MatchDesc} ->
+            %%?DEBUG("[~p] [~p] dbg:ctpl MatchDesc ~p",
+                %[?MODULE, Node, MatchDesc])
+            ok
     end;
-disable_tracing(Node, T=#trc_pattern{m=Module,f=Function,a=undefined}) ->
-    ?DEBUG("[~p] [~p] Disable ~p tracing", [?MODULE, Node, T]),
+disable_tracing(Node, _T=#trc_pattern{m=Module,f=Function,a=undefined}) ->
+    %%?DEBUG("[~p] [~p] Disable ~p tracing", [?MODULE, Node, T]),
     case rpc:call(Node, dbg, ctpl, [Module, Function]) of
         {badrpc, nodedown} ->
             ok;
-        {ok, MatchDesc} ->
-            ?DEBUG("[~p] [~p] dbg:ctpl MatchDesc ~p",
-                [?MODULE, Node, MatchDesc])
+        {ok, _MatchDesc} ->
+            %%?DEBUG("[~p] [~p] dbg:ctpl MatchDesc ~p",
+                %[?MODULE, Node, MatchDesc])
+            ok
     end;
-disable_tracing(Node, T=#trc_pattern{m=Module,f=Function,a=Arity}) ->
-    ?DEBUG("[~p] [~p] Disable ~p tracing", [?MODULE, Node, T]),
+disable_tracing(Node, _T=#trc_pattern{m=Module,f=Function,a=Arity}) ->
+    %%?DEBUG("[~p] [~p] Disable ~p tracing", [?MODULE, Node, T]),
     case rpc:call(Node, dbg, ctpl, [Module, Function, Arity]) of
         {badrpc, nodedown} ->
             ok;
-        {ok, MatchDesc} ->
-            ?DEBUG("[~p] [~p] dbg:ctpl MatchDesc ~p",
-                [?MODULE, Node, MatchDesc])
+        {ok, _MatchDesc} ->
+            %%?DEBUG("[~p] [~p] dbg:ctpl MatchDesc ~p",
+                %[?MODULE, Node, MatchDesc])
+            ok
     end.
 %%------------------------------------------------------------------------
 -spec handle_data_retrival_method({push, non_neg_integer(), atom()} | pull) -> reference() | undefined.
@@ -495,8 +504,8 @@ push_data_loop(Mod, Tbl, Node) ->
         try
             ets:first(Tbl)
         catch
-            C:E ->
-                ?ALERT("ets:first got exception ~p ~p", [C, E]),
+            _C:_E ->
+                % ?ALERT("ets:first got exception ~p ~p", [C, E]),
                 '$end_of_table'
         end,
     push_data_loop(Mod, Tbl, Node, First).
@@ -516,12 +525,12 @@ new_trace_timer(_ChildId, false, TRef) ->
     ok = cancel_timer(TRef),
     false;
 new_trace_timer(ChildId, NewTraceTime, false) ->
-    ?WARNING("STOPPING traces after ~p Seconds", [NewTraceTime/1000]),
+    %%?WARNING("STOPPING traces after ~p Seconds", [NewTraceTime/1000]),
     {ok, TRef} = timer:apply_after(NewTraceTime, gen_server, call, [ChildId, stop_all_trace_patterns]),
     TRef;
 new_trace_timer(ChildId, NewTraceTime, {_, TRef}) when is_reference(TRef) ->
     ok = cancel_timer(TRef),
-    ?WARNING("STOPPING traces after ~p Seconds", [NewTraceTime/1000]),
+    %%?WARNING("STOPPING traces after ~p Seconds", [NewTraceTime/1000]),
     {ok, NewTRef} = timer:apply_after(NewTraceTime, gen_server, call, [ChildId, stop_all_trace_patterns]),
     NewTRef.
 
@@ -534,8 +543,8 @@ cancel_timer(TRef) ->
                 ok
         end
     catch
-        C:E ->
-            ?EMERGENCY("Could not clear timer: ~p ~p~n~p", [C,E,erlang:get_stacktrace()]),
+        _C:_E ->
+            %%?EMERGENCY("Could not clear timer: ~p ~p~n~p", [C,E,erlang:get_stacktrace()]),
             ok
     end.
 %%------------------------------------------------------------------------
@@ -555,7 +564,7 @@ reapply_traces(#?STATE{node = Node,
         begin
             %% TODO: check if the trace time is still valid: ! Created Timestamp
             % {trc, TrcPattern} = lists:keyfind(trc, 1, Opts),
-            ?CRITICAL("!!! re-tracing - ~p", [TrcPattern]),
+            %%?CRITICAL("!!! re-tracing - ~p", [TrcPattern]),
             ok = enable_tracing(Node, TrcPattern)
         end
     || {{C, TrcPattern},_Timestamp, _Opts} <- ets:tab2list(tracelist), C =:=ChildId],
@@ -578,11 +587,12 @@ check_forward_mod(Mod) ->
     % TODO: build a behaviour checker...
     case erlang:function_exported(Mod, forward, 2) of
         true ->
-        	?DEBUG("Forward module checked...", []);
+        	%%?DEBUG("Forward module checked...", []);
+            ok;
         false ->
-            ?EMERGENCY("[~p] Forwarding callback module ~p
-                missing required behaviour functions...halting...",
-                [?MODULE, Mod]),
+            %%?EMERGENCY("[~p] Forwarding callback module ~p
+                % missing required behaviour functions...halting...",
+                % [?MODULE, Mod]),
             erlang:halt(1),
             ok
     end.

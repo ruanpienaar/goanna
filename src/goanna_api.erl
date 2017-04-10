@@ -16,7 +16,6 @@
 %% Trace Api
 -export([
     trace/1, trace/2, trace/3, trace/4,
-    trc/1, trc/2,
     trace_modules/1,
     stop_trace/0, stop_trace/1, stop_trace/2, stop_trace/3,
     clear_all_traces/0,
@@ -131,10 +130,10 @@ set_data_retrival_method(_) ->
     {error, badarg}.
 
 -spec trace(string() | atom()) -> ok | {error, badarg}.
-trace(MsStr) ->
+trace(MsStr) when is_list(MsStr) ->
     %% http://erldocs.com/current/erts/erlang.html?i=1&search=erlang:trace_pa#trace_pattern/3
     %% not really using Flags, with my DBG implementation yet..
-    {{M,F,A},MatchSpec,[_Flag]} = redbug_msc:transform(Str),
+    {{M,F,A},MatchSpec,[_Flag]} = redbug_msc:transform(MsStr),
     cluster_foreach_call({trace, [], [#trc_pattern{m=M,f=F,a=A,ms=MatchSpec}]});
 trace(Module) when is_atom(Module) ->
     try

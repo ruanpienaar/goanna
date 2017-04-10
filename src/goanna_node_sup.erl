@@ -30,7 +30,7 @@ start_link() ->
 
 -spec start_child(node(), atom(), erlang_distribution | file | tcpip_port) -> {ok, supervisor:child()} | {error,{already_started,pid()}}.
 start_child(Node, Cookie, Type) ->
-	?DEBUG("Starting Child ~p ~p ~p", [Node, Cookie, Type]),
+	%%?DEBUG("Starting Child ~p ~p ~p", [Node, Cookie, Type]),
     ChildId = id(Node,Cookie),
     case whereis(ChildId) of
         undefined ->
@@ -42,7 +42,7 @@ start_child(Node, Cookie, Type) ->
 
 -spec delete_child(node()) -> ok | {error, no_such_node}.
 delete_child(Node) ->
-	?DEBUG("Deleting Child ~p", [Node]),
+	%%?DEBUG("Deleting Child ~p", [Node]),
     case goanna_db:lookup([nodelist, Node]) of
         [{Node, Cookie,_}] ->
             ID=id(Node,Cookie),

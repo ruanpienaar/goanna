@@ -1,17 +1,21 @@
 -module(goanna).
 -export([main/1]).
-%%! -smp disable +A 1 -sname goanna_script -hidden -setcookie goanna -config sys.config
+%%! -hidden -setcookie goanna -proto_dist hawk_tcp -hidden
 -mode(compile).
 -include_lib("goanna.hrl").
 
 -spec main(term()) -> term().
 main([]) ->
     main(["-s"]);
-
 main([NameType]) when NameType =:= "-s";
                       NameType =:= "-l" ->
+
+    io:format("~p~n", [init:get_arguments()]),
+    halt(1),
+
     %% FOLLOW the below if no arguments were given....
     {ok, [Terms]} = file:consult("sys.config"),
+    ok = application:set_env(kakapo, event_handler, []),
     %% TODO: Use Getopt
     case NameType of
         "-s" ->
@@ -36,28 +40,24 @@ main([NameType]) when NameType =:= "-s";
     	{dbg_p_flags, DPF} ->
     		application:set_env(goanna, dbg_p_flags, DPF)
     end,
-    {lager, LagerConf} = lists:keyfind(lager, 1, Terms),
-    lists:foreach(fun({LagerConfCol,LagerConfVal}) ->
-    	application:set_env(lager, LagerConfCol, LagerConfVal)
-    end, LagerConf),
     true = lists:all(fun(ok) -> true; (_) -> false end, goanna_api:start()),
     case check_lookup_value(nodes, GoannaConfig) of
         [] ->
-            ?CRITICAL("No nodes to start, check sys.config", []),
+            %%?CRITICAL("No nodes to start, check sys.config", []),
             timer:sleep(50),
             erlang:halt(0);
         Nodes ->
             case check_lookup_value(traces, GoannaConfig) of
                 [] ->
-                    ?CRITICAL("No traces to start, check sys.config", []),
+                    %%?CRITICAL("No traces to start, check sys.config", []),
                     timer:sleep(50),
                     erlang:halt(0);
                 Traces ->
-                	?DEBUG("Startup nodes!"),
+                	%%?DEBUG("Startup nodes!"),
                     ok = startup_nodes(Nodes),
-                    ?DEBUG("Waiting for nodes......~n", []),
+                    %%?DEBUG("Waiting for nodes......~n", []),
                     wait_for_nodes(Nodes, 500),
-                    ?DEBUG("Applying Traces ~p~n", [Traces]),
+                    %%?DEBUG("Applying Traces ~p~n", [Traces]),
                     timer:sleep(50),
                     traces(Traces)
             end
@@ -74,24 +74,25 @@ startup_nodes([H|T]) ->
     startup_nodes(T).
 
 wait_for_nodes(_Nodes, 0) ->
-	?CRITICAL("Wait was too long, nodes haven't arrived", []),
+	%%?CRITICAL("Wait was too long, nodes haven't arrived", []),
 	timer:sleep(50),
 	erlang:halt(0);
 wait_for_nodes(Nodes, Count) ->
 	GN = goanna_api:nodes(),
-	%%?DEBUG("Nodes known to goanna: ~p~n", [Nodes]),
+	%%%%?DEBUG("Nodes known to goanna: ~p~n", [Nodes]),
 	case length(GN)==length(Nodes) of
 		true ->
 			Pids = [ whereis(N) || [{node,N},{cookie,_C},{_,_}] <- Nodes],
 			case lists:all(fun(undefined) -> false; (P) when is_pid(P) -> true end, Pids) of
 				true ->
-					?INFO("Nodes are alive now..~p~n", [Pids]),
-					timer:sleep(5000);
+					%%?INFO("Nodes are alive now..~p~n", [Pids]),
+					% timer:sleep(5000);
+                    ok;
 				false ->
 					wait_for_nodes(Nodes, Count-1)
 			end;
 		false ->
-			?DEBUG("Waiting for nodes....~n", []),
+			%%?DEBUG("Waiting for nodes....~n", []),
 			timer:sleep(10),
 			wait_for_nodes(Nodes, Count-1)
 	end.

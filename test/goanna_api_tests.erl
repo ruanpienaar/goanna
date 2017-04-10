@@ -323,7 +323,6 @@ trace_validation() ->
 
     %% just trace some non-sense
     {error, badarg} = goanna_api:trace(1),
-    {error, badarg} = goanna_api:trace("api"),
     {error, badarg} = goanna_api:trace(1.1),
     {error, badarg} = goanna_api:trace("api", 1),
     {error, badarg} = goanna_api:trace(1, 1),
@@ -471,6 +470,8 @@ list_active_traces() ->
 %%------------------------------------------------------------------------
 
 setup() ->
+    ok = application:load(kakapo),
+    ok = application:set_env(kakapo, event_handler, []),
     [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok] =
         goanna_api:start(),
     {ok, Host} = inet:gethostname(),

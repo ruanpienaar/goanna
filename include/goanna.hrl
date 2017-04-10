@@ -1,26 +1,26 @@
--define(DEBUG(Msg),io:format("~p~n", [Msg])).
--define(DEBUG(Msg, Args), io:format(Msg++"\n", Args)).
+% -define(DEBUG(Msg),io:format("~p~n", [Msg])).
+% -define(DEBUG(Msg, Args), io:format(Msg++"\n", Args)).
 
--define(INFO(Msg),io:format("~p~n", [Msg])).
--define(INFO(Msg, Args), io:format(Msg++"\n", Args)).
+% -define(INFO(Msg),io:format("~p~n", [Msg])).
+% -define(INFO(Msg, Args), io:format(Msg++"\n", Args)).
 
--define(NOTICE(Msg),io:format("~p~n", [Msg])).
--define(NOTICE(Msg, Args), io:format(Msg++"\n", Args)).
+% -define(NOTICE(Msg),io:format("~p~n", [Msg])).
+% -define(NOTICE(Msg, Args), io:format(Msg++"\n", Args)).
 
--define(WARNING(Msg),io:format("~p~n", [Msg])).
--define(WARNING(Msg, Args), io:format(Msg++"\n", Args)).
+% -define(WARNING(Msg),io:format("~p~n", [Msg])).
+% -define(WARNING(Msg, Args), io:format(Msg++"\n", Args)).
 
--define(ERROR(Msg),io:format("~p~n", [Msg])).
--define(ERROR(Msg, Args), io:format(Msg++"\n", Args)).
+% -define(ERROR(Msg),io:format("~p~n", [Msg])).
+% -define(ERROR(Msg, Args), io:format(Msg++"\n", Args)).
 
--define(CRITICAL(Msg),io:format("~p~n", [Msg])).
--define(CRITICAL(Msg, Args), io:format(Msg++"\n", Args)).
+% -define(CRITICAL(Msg),io:format("~p~n", [Msg])).
+% -define(CRITICAL(Msg, Args), io:format(Msg++"\n", Args)).
 
--define(ALERT(Msg),io:format("~p~n", [Msg])).
--define(ALERT(Msg, Args), io:format(Msg++"\n", Args)).
+% -define(ALERT(Msg),io:format("~p~n", [Msg])).
+% -define(ALERT(Msg, Args), io:format(Msg++"\n", Args)).
 
--define(EMERGENCY(Msg),io:format("~p~n", [Msg])).
--define(EMERGENCY(Msg, Args), io:format(Msg++"\n", Args)).
+% -define(EMERGENCY(Msg),io:format("~p~n", [Msg])).
+% -define(EMERGENCY(Msg, Args), io:format(Msg++"\n", Args)).
 
 -record(trc_pattern,{
     m,

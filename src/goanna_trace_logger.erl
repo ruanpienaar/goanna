@@ -16,24 +16,24 @@ forward(_Tbl, {_, _TraceItem}) ->
 
 %%------------------------------------------------------------------------
 
-init(A) ->
-    io:format("inti:~p~n", [A]),
+init(_A) ->
+    %io:format("inti:~p~n", [A]),
     {ok, undefined}.
 
-handle_event(Event, State) ->
-    io:format("Event:~p~n", [Event]),
+handle_event(_Event, State) ->
+    %io:format("Event:~p~n", [Event]),
     {ok, State}.
 
-handle_call(Request, _State) ->
-    io:format("Request:~p~n", [Request]),
+handle_call(_Request, _State) ->
+    %io:format("Request:~p~n", [Request]),
     {remove_handler, {error, unknown_call}}.
 
-handle_info(Info, State) ->
-    io:format("Info:~p~n", [Info]),
+handle_info(_Info, State) ->
+    %io:format("Info:~p~n", [Info]),
     {ok, State}.
 
-terminate(Reason, _State) ->
-    io:format("Reason:~p~n", [Reason]),
+terminate(_Reason, _State) ->
+    %io:format("Reason:~p~n", [Reason]),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->

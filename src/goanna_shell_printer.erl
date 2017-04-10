@@ -4,8 +4,8 @@
 
 -export([forward/2]).
 
--export([log_levels/0,
-     trace_abbreviations/0
+-export([% log_levels/0,
+         trace_abbreviations/0
 ]).
 
 -include_lib("goanna.hrl").
@@ -92,16 +92,16 @@ format_trace_item(T,Trace={drop, _NumberOfDroppedItems}) ->
 format_trace_item(T,Trace) ->
     io:format("~p ~p", [T, Trace]).
 
--spec log_levels() -> ok.
-log_levels() ->
-    ?DEBUG("DEBUG", []),
-    ?INFO("INFO", []),
-    ?NOTICE("NOTICE", []),
-    ?WARNING("WARNING", []),
-    ?ERROR("ERROR", []),
-    ?CRITICAL("CRITICAL", []),
-    ?ALERT("ALERT", []),
-    ?EMERGENCY("EMERGENCY", []).
+% -spec log_levels() -> ok.
+% log_levels() ->
+%     ?DEBUG("DEBUG", []),
+%     ?INFO("INFO", []),
+%     ?NOTICE("NOTICE", []),
+%     ?WARNING("WARNING", []),
+%     ?ERROR("ERROR", []),
+%     ?CRITICAL("CRITICAL", []),
+%     ?ALERT("ALERT", []),
+%     ?EMERGENCY("EMERGENCY", []).
 
 get_trace_abbreviation('receive') ->
     "REC";

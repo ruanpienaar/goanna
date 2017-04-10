@@ -16,5 +16,5 @@ cd `dirname $0`
 #echo $?
 
 
-erl +A 1 +K true $DIST_NAME $NAME -boot start_sasl -config $PWD/sys.config -pa $PWD/ebin $PWD/deps/*/ebin $PWD/test -setcookie goanna -s goanna_api start -proto_dist hawk_tcp -hidden 
-#-noshell -noinput -detached 
+erl +A 1 +K true $DIST_NAME $NAME -boot start_sasl -config $PWD/sys.config -pa $PWD/ebin $PWD/deps/*/ebin $PWD/test -setcookie goanna -s goanna_api start -proto_dist hawk_tcp -hidden
+#-noshell -noinput -detached
