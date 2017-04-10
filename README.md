@@ -28,7 +28,6 @@ $ make
 ```
 
 Goanna is a small library built on top of dbg, primarily for convenience.
-there are two modes of running goanna, as a erlang node, with [start-dev.sh](https://github.com/ruanpienaar/goanna/blob/master/start-dev.sh) or the goanna escript.
 
 Escript example:
 ```
@@ -60,8 +59,7 @@ Beam shell example:
  ]}
 ```
 
-So once you've added some nodes, you can enable a trace pattern with Module, Module Function or Module Function Arity.
-**Module Function match spec coming soon. Where you'd be able to trace functionality and have traces returned based on the match spec**
+So once you've added some nodes, you can enable a trace pattern with Module, Module Function, Module Function Arity or write your own trace match spec with help of redbug's string parsing to dbg trace match spec code.
 
 Tracing Example:
 ```Erlang
@@ -70,6 +68,8 @@ Tracing Example:
 2> goanna_api:trace(module, function).
 
 3> goanna_api:trace(module, function, arity_integer).
+
+4> goanna_api:trace("ets:lookup(Cust, customers) when Cust==homer -> return").
 
 ```
 
@@ -98,8 +98,7 @@ Application env System configuration options:
  call
 
 #WIP Roadmap
-1. escriptify getopt integration needed
-2. custom trace_port client
-4. be able to work with short/long names in the erlang distribution
-5. Able to compile gonna on OTP 18 < ( timestamp code )
-6. file trace needs to be implemented
+1. custom trace_port client
+2. be able to work with short/long names in the erlang distribution
+3. Able to compile gonna on OTP 18 < ( timestamp code )
+4. file trace needs to be implemented
