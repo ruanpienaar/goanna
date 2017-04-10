@@ -69,7 +69,7 @@ Tracing Example:
 
 3> goanna_api:trace(module, function, arity_integer).
 
-4> goanna_api:trace("ets:lookup(Cust, customers) when Cust==homer -> return").
+4> goanna_api:trace_ms("ets:lookup(Cust, customers) when Cust==homer -> return").
 
 ```
 
