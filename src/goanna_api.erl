@@ -130,7 +130,12 @@ set_data_retrival_method(DRM={push, _Interval, _Mod}) ->
 set_data_retrival_method(_) ->
     {error, badarg}.
 
--spec trace(atom()) -> ok | {error, badarg}.
+-spec trace(string() | atom()) -> ok | {error, badarg}.
+trace(MsStr) ->
+    %% http://erldocs.com/current/erts/erlang.html?i=1&search=erlang:trace_pa#trace_pattern/3
+    %% not really using Flags, with my DBG implementation yet..
+    {{M,F,A},MatchSpec,[_Flag]} = redbug_msc:transform(Str),
+    cluster_foreach_call({trace, [], [#trc_pattern{m=M,f=F,a=A,ms=MatchSpec}]});
 trace(Module) when is_atom(Module) ->
     try
         cluster_foreach_call({trace, [], [#trc_pattern{m=Module}]})
@@ -158,17 +163,6 @@ trace(Module, Function, Arity, Opts) when is_atom(Module), is_atom(Function), is
     cluster_foreach_call({trace, Opts, [#trc_pattern{m=Module,f=Function,a=Arity}]});
 trace(_,_,_,_) ->
     {error, badarg}.
-
--spec trc(string()) -> ok.
-trc(Str) when is_list(Str) ->
-    %% http://erldocs.com/current/erts/erlang.html?i=1&search=erlang:trace_pa#trace_pattern/3
-    %% not really using Flags, with my DBG implementation yet..
-    trc(Str, []).
-
--spec trc(string(), nonempty_list()) -> ok.
-trc(Str, Opts) ->
-    {{M,F,A},MatchSpec,[_Flag]} = redbug_msc:transform(Str),
-    cluster_foreach_call({trace, Opts, [#trc_pattern{m=M,f=F,a=A,ms=MatchSpec}]}).
 
 -spec trace_modules(list( atom() )) -> ok.
 trace_modules(Modules) ->
