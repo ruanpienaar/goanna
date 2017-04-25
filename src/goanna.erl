@@ -1,7 +1,9 @@
 -module(goanna).
+
 -export([main/1]).
-%%! -hidden -setcookie goanna -proto_dist hawk_tcp -hidden
+
 -mode(compile).
+
 -include_lib("goanna.hrl").
 
 -spec main(term()) -> term().
@@ -9,10 +11,6 @@ main([]) ->
     main(["-s"]);
 main([NameType]) when NameType =:= "-s";
                       NameType =:= "-l" ->
-
-    io:format("~p~n", [init:get_arguments()]),
-    halt(1),
-
     %% FOLLOW the below if no arguments were given....
     {ok, [Terms]} = file:consult("sys.config"),
     ok = application:set_env(kakapo, event_handler, []),
@@ -49,8 +47,8 @@ main([NameType]) when NameType =:= "-s";
         Nodes ->
             case check_lookup_value(traces, GoannaConfig) of
                 [] ->
-                    %%?CRITICAL("No traces to start, check sys.config", []),
-                    timer:sleep(50),
+                    io:format("No traces to start, add M,F,A traces to sys.config", []),
+                    timer:sleep(100),
                     erlang:halt(0);
                 Traces ->
                 	%%?DEBUG("Startup nodes!"),
@@ -58,7 +56,7 @@ main([NameType]) when NameType =:= "-s";
                     %%?DEBUG("Waiting for nodes......~n", []),
                     wait_for_nodes(Nodes, 500),
                     %%?DEBUG("Applying Traces ~p~n", [Traces]),
-                    timer:sleep(50),
+                    timer:sleep(100),
                     traces(Traces)
             end
     end,
@@ -74,8 +72,8 @@ startup_nodes([H|T]) ->
     startup_nodes(T).
 
 wait_for_nodes(_Nodes, 0) ->
-	%%?CRITICAL("Wait was too long, nodes haven't arrived", []),
-	timer:sleep(50),
+	io:format("Wait was too long, nodes haven't arrived", []),
+	timer:sleep(100),
 	erlang:halt(0);
 wait_for_nodes(Nodes, Count) ->
 	GN = goanna_api:nodes(),

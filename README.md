@@ -51,9 +51,9 @@ Beam shell example:
 ```erlang
  {goanna,[
     {nodes,[
-        [{node,   NodeName},
-         {cookie, Cookie},
-         {type,   Type}]   %% tcpipo_port | file | erlang_distribution
+        [{node,   NodeName}, %% 'somenode@myhost.com'
+         {cookie, Cookie},   %% oreo
+         {type,   Type}]     %% tcpip_port | file | erlang_distribution
         ]
     ]}
  ]}
