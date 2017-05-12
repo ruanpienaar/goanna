@@ -4,8 +4,8 @@
 
 -export([forward/2]).
 
--export([% log_levels/0,
-         trace_abbreviations/0
+-export([trace_abbreviations/0,
+         format_trace_item/2
 ]).
 
 -include_lib("goanna.hrl").
@@ -13,7 +13,8 @@
 -spec forward(Tbl :: term(), goanna_forward_callback_mod:goanna_trace_tuple()) -> ok.
 %% Warning is used for the nice Yellow color, from the default lager config.
 forward(Tbl, {_, TraceItem}) ->
-    format_trace_item(Tbl,TraceItem).
+    String = format_trace_item(Tbl,TraceItem),
+    io:format(String).
 
 get_time({_,_,Micro} = Timestamp) ->
     {{Year, Month, Day}, {Hour, Minute, Second}} = calendar:now_to_datetime(Timestamp),
@@ -53,44 +54,44 @@ get_time({_,_,Micro} = Timestamp) ->
 %% trace_ts
 format_trace_item(T,_Trace={trace_ts, _Pid, exception_from, Info, ReportedTS}) ->
     % ?ERROR("~s ~p ~.5s: ~p", [get_time(ReportedTS), T, get_trace_abbreviation(exception_from), Info]);
-    io:format("~s ~p ~.5s: ~p", [get_time(ReportedTS), T, get_trace_abbreviation(exception_from), Info]);
+    io_lib:format("~s ~p ~.5s: ~p", [get_time(ReportedTS), T, get_trace_abbreviation(exception_from), Info]);
 
 format_trace_item(T,_Trace={trace_ts, _Pid, return_from, Info, ReportedTS}) ->
     % ?NOTICE("~s ~p ~.5s: ~p", [get_time(ReportedTS), T, get_trace_abbreviation(return_from), Info]);
-    io:format("~s ~p ~.5s: ~p", [get_time(ReportedTS), T, get_trace_abbreviation(return_from), Info]);
+    io_lib:format("~s ~p ~.5s: ~p", [get_time(ReportedTS), T, get_trace_abbreviation(return_from), Info]);
 
 format_trace_item(T,_Trace={trace_ts, _Pid, call, Info, ReportedTS}) ->
     % ?NOTICE("~s ~p ~.5s: ~p", [get_time(ReportedTS), T, get_trace_abbreviation(call), Info]);
-    io:format("~s ~p ~.5s: ~p", [get_time(ReportedTS), T, get_trace_abbreviation(call), Info]);
+    io_lib:format("~s ~p ~.5s: ~p", [get_time(ReportedTS), T, get_trace_abbreviation(call), Info]);
 
 format_trace_item(T,_Trace={trace_ts, _Pid, Label, Info, ReportedTS}) ->
     % ?NOTICE("~s ~p ~.5s: ~p", [get_time(ReportedTS), T, get_trace_abbreviation(Label), Info]);
-    io:format("~s ~p ~.5s: ~p", [get_time(ReportedTS), T, get_trace_abbreviation(Label), Info]);
+    io_lib:format("~s ~p ~.5s: ~p", [get_time(ReportedTS), T, get_trace_abbreviation(Label), Info]);
 
 format_trace_item(T,_Trace={trace_ts, _Pid, exception_from, Info, Extra, ReportedTS}) ->
     % ?ERROR("~s ~p ~.5s: ~p ~p", [get_time(ReportedTS), T, get_trace_abbreviation(exception_from), Info, Extra]);
-    io:format("~s ~p ~.5s: ~p ~p", [get_time(ReportedTS), T, get_trace_abbreviation(exception_from), Info, Extra]);
+    io_lib:format("~s ~p ~.5s: ~p ~p", [get_time(ReportedTS), T, get_trace_abbreviation(exception_from), Info, Extra]);
 
 format_trace_item(T,_Trace={trace_ts, _Pid, return_from, Info, Extra, ReportedTS}) ->
     % ?NOTICE("~s ~p ~.5s: ~p ~p", [get_time(ReportedTS), T, get_trace_abbreviation(return_from), Info, Extra]);
-    io:format("~s ~p ~.5s: ~p ~p", [get_time(ReportedTS), T, get_trace_abbreviation(return_from), Info, Extra]);
+    io_lib:format("~s ~p ~.5s: ~p ~p", [get_time(ReportedTS), T, get_trace_abbreviation(return_from), Info, Extra]);
 
 format_trace_item(T,_Trace={trace_ts, _Pid, call, Info, Extra, ReportedTS}) ->
     % ?NOTICE("~s ~p ~.5s: ~p ~p", [get_time(ReportedTS), T, get_trace_abbreviation(call), Info, Extra]);
-    io:format("~s ~p ~.5s: ~p ~p", [get_time(ReportedTS), T, get_trace_abbreviation(call), Info, Extra]);
+    io_lib:format("~s ~p ~.5s: ~p ~p", [get_time(ReportedTS), T, get_trace_abbreviation(call), Info, Extra]);
 
 format_trace_item(T,_Trace={trace_ts, _Pid, Label, Info, Extra, ReportedTS}) ->
     % ?INFO("~s ~p ~.5s: ~p ~p", [get_time(ReportedTS), T, get_trace_abbreviation(Label), Info, Extra]);
-    io:format("~s ~p ~.5s: ~p ~p", [get_time(ReportedTS), T, get_trace_abbreviation(Label), Info, Extra]);
+    io_lib:format("~s ~p ~.5s: ~p ~p", [get_time(ReportedTS), T, get_trace_abbreviation(Label), Info, Extra]);
 
 format_trace_item(T,Trace={seq_trace, _Label, _SeqTraceInfo}) ->
-   io:format("~p ~p", [T, Trace]);
+   io_lib:format("~p ~p", [T, Trace]);
 
 format_trace_item(T,Trace={drop, _NumberOfDroppedItems}) ->
-    io:format("~p ~p", [T, Trace]);
+    io_lib:format("~p ~p", [T, Trace]);
 
 format_trace_item(T,Trace) ->
-    io:format("~p ~p", [T, Trace]).
+    io_lib:format("~p ~p", [T, Trace]).
 
 % -spec log_levels() -> ok.
 % log_levels() ->
