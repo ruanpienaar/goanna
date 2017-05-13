@@ -2,4 +2,4 @@
 ./rebar3 clean
 ./rebar3 compile
 ./rebar3 eunit skip_deps=true
-./rebar3 coveralls send
+DEBUG=1 ./rebar3 coveralls send
