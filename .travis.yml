@@ -1,8 +1,11 @@
 language: erlang
+
 notifications:
   email: ruan800@gmail.com
+
 before_script:
   kerl list installations
+
 otp_release:
     - 17.0
     - 17.1
@@ -19,8 +22,12 @@ otp_release:
     - 19.2
     - 19.3
 
+install:
+  - wget https://s3.amazonaws.com/rebar3/rebar3 && chmod +x rebar3
+
 script:
   rebar3 clean && rebar3 compile && rebar3 skip_deps=true eunit && rebar3 skip_deps=true ct
+
 env:
   global:
     - TIMEOUT=100
