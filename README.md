@@ -33,8 +33,8 @@ Goanna is a small library built on top of dbg, primarily for convenience.
 Escript example:
 ```
 $ make
-$ ./goanna -s   ( shortnames )
-$ ./goanna -l   ( you guessed it, long names )
+$ ./_build/default/bin/goanna -s   ( shortnames )
+$ ./_build/default/bin/goanna -l   ( you guessed it, long names )
 ```
 
 goanna allows you to easily specify nodes either in the command line, or in the sys.config.

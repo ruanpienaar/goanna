@@ -21,7 +21,7 @@ main([NameType]) when NameType =:= "-s";
     	"-l" ->
 	        {ok,_} = net_kernel:start([somename, longnames])
     end,
-    ok = application:set_env(hawk, conn_retry_wait, 10),
+    ok = application:set_env(hawk, conn_retry_wait, 100),
     ok = application:set_env(hawk, connection_retries, 1000),
     %% Force push!
     ok = application:set_env(goanna, data_retrival_method, {push, 100, goanna_shell_printer}),
@@ -41,20 +41,21 @@ main([NameType]) when NameType =:= "-s";
     true = lists:all(fun(ok) -> true; (_) -> false end, goanna_api:start()),
     case check_lookup_value(nodes, GoannaConfig) of
         [] ->
-            %%?CRITICAL("No nodes to start, check sys.config", []),
+            io:format("No nodes to start in ./sys.config", []),
             timer:sleep(50),
             erlang:halt(0);
-        Nodes ->
+        _Nodes ->
             case check_lookup_value(traces, GoannaConfig) of
                 [] ->
-                    io:format("No traces to start, add M,F,A traces to sys.config", []),
+                    io:format("No traces to start in ./sys.config", []),
                     timer:sleep(100),
                     erlang:halt(0);
                 Traces ->
-                	%%?DEBUG("Startup nodes!"),
-                    ok = startup_nodes(Nodes),
+                    %%?DEBUG("Startup nodes!"),
+                    % timer:sleep(1000),
+                    % ok = startup_nodes(Nodes),
                     %%?DEBUG("Waiting for nodes......~n", []),
-                    wait_for_nodes(Nodes, 500),
+                    % wait_for_nodes(Nodes, 500),
                     %%?DEBUG("Applying Traces ~p~n", [Traces]),
                     timer:sleep(100),
                     traces(Traces)
@@ -62,43 +63,40 @@ main([NameType]) when NameType =:= "-s";
     end,
     infinite_loop().
 
-startup_nodes([]) ->
-    ok;
-startup_nodes([H|T]) ->
-    Node   = check_lookup_value(node, H),
-    Cookie = check_lookup_value(cookie, H),
-    Type   = check_lookup_value(type, H),
-    {ok, _} = goanna_api:add_node(Node, Cookie, Type),
-    startup_nodes(T).
+%wait_for_nodes(_Nodes, 0) ->
+%	io:format("Wait was too long, nodes haven't arrived", []),
+%	timer:sleep(100),
+%	erlang:halt(0);
+%wait_for_nodes(Nodes, Count) ->
+%	GN = goanna_api:nodes(),
+%	%%%%?DEBUG("Nodes known to goanna: ~p~n", [Nodes]),
+%	case length(GN)==length(Nodes) of
+%		true ->
+%			Pids = [ whereis(N) || [{node,N},{cookie,_C},{_,_}] <- Nodes],
+%			case lists:all(fun(undefined) -> false; (P) when is_pid(P) -> true end, Pids) of
+%				true ->
+%					%%?INFO("Nodes are alive now..~p~n", [Pids]),
+%					% timer:sleep(5000);
+%                    ok;
+%				false ->
+%					wait_for_nodes(Nodes, Count-1)
+%			end;
+%		false ->
+%			%%?DEBUG("Waiting for nodes....~n", []),
+%			timer:sleep(10),
+%			wait_for_nodes(Nodes, Count-1)
+%	end.
 
-wait_for_nodes(_Nodes, 0) ->
-	io:format("Wait was too long, nodes haven't arrived", []),
-	timer:sleep(100),
-	erlang:halt(0);
-wait_for_nodes(Nodes, Count) ->
-	GN = goanna_api:nodes(),
-	%%%%?DEBUG("Nodes known to goanna: ~p~n", [Nodes]),
-	case length(GN)==length(Nodes) of
-		true ->
-			Pids = [ whereis(N) || [{node,N},{cookie,_C},{_,_}] <- Nodes],
-			case lists:all(fun(undefined) -> false; (P) when is_pid(P) -> true end, Pids) of
-				true ->
-					%%?INFO("Nodes are alive now..~p~n", [Pids]),
-					% timer:sleep(5000);
-                    ok;
-				false ->
-					wait_for_nodes(Nodes, Count-1)
-			end;
-		false ->
-			%%?DEBUG("Waiting for nodes....~n", []),
-			timer:sleep(10),
-			wait_for_nodes(Nodes, Count-1)
-	end.
+check_lookup_value(Key, Proplist) ->
+    case lists:keyfind(Key, 1, Proplist) of
+        false    -> throw({missing_value, Key, Proplist});
+        {Key, V} -> V
+    end.
 
-% H
-% [{module,pasture_meetup}]
-% [{module,pasture_meetup}, {function,handle_info}]
-% [{module,pasture_meetup}, {function,handle_info}, {arity,2}]
+infinite_loop() ->
+    timer:sleep(1000),
+	infinite_loop().
+
 traces([]) ->
     ok;
 traces([H|T]) ->
@@ -115,13 +113,3 @@ traces([H|T]) ->
             end
     end,
     traces(T).
-
-check_lookup_value(Key, Proplist) ->
-    case lists:keyfind(Key, 1, Proplist) of
-        false    -> throw({missing_value, Key, Proplist});
-        {Key, V} -> V
-    end.
-
-infinite_loop() ->
-    timer:sleep(1000),
-	infinite_loop().
