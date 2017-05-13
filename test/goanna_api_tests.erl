@@ -423,6 +423,12 @@ reached_max_stop_trace() ->
     ok = goanna_api:remove_node(Node).
 
 list_active_traces() ->
+    % trace([{goanna_db, truncate_tracelist},
+    %        {goanna_db, lookup},
+    %        {goanna_db, store},
+    %        {goanna_db, delete_child_id_tracelist},
+    %        {goanna_db, delete_child_id_trace_pattern}
+    % ]),
     %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
     {ok, Host} = inet:gethostname(),
@@ -447,6 +453,9 @@ list_active_traces() ->
     ok = goanna_api:trace(goanna_test_module, function2),
     ok = goanna_api:trace(goanna_test_module, function3, 1),
 
+    ?assert(length(ets:tab2list(tracelist)) == 3),
+    ?assert(length(goanna_api:list_active_traces()) == 3),
+
     %% Let's call the same thing again...
     ok = goanna_api:trace(goanna_test_module, function),
     ok = goanna_api:trace(goanna_test_module, function),
@@ -459,7 +468,7 @@ list_active_traces() ->
     ok = goanna_api:stop_trace(goanna_test_module, function),
 
     %% Ok, maybe we have to wait for the ets obj to be deleted.
-    timer:sleep(50),
+    % timer:sleep(50),
 
     %% Check that the others survived.
     ?assertEqual(2, length(ets:tab2list(tracelist))),
@@ -512,3 +521,18 @@ stop_distrib()->
 
 forward(_Node, _TraceMessage) ->
     ok.
+
+% trace(L) ->
+%     start_dbg(),
+%     do_trace(L).
+
+% do_trace(L) when is_list(L) ->
+%     [ do_trace(I) || I <- L ];
+% do_trace({M}) ->
+%     dbg:tpl(M, cx);
+% do_trace({M,F}) ->
+%     dbg:tpl(M, F, cx).
+
+% start_dbg() ->
+%     dbg:tracer(),
+%     dbg:p(all, call).
