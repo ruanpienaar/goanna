@@ -20,7 +20,7 @@ otp_release:
     - 19.3
 
 script:
-  rebar clean && rebar compile && rebar skip_deps=true eunit && rebar skip_deps=true ct
+  rebar3 clean && rebar3 compile && rebar3 skip_deps=true eunit && rebar3 skip_deps=true ct
 env:
   global:
     - TIMEOUT=100
