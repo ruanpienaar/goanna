@@ -4,8 +4,6 @@ notifications:
 before_script:
   kerl list installations
 otp_release:
-    - 17.0-rc1
-    - 17.0-rc2
     - 17.0
     - 17.1
     - 17.3
