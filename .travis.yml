@@ -21,7 +21,7 @@ install:
   - wget https://s3.amazonaws.com/rebar3/rebar3 && chmod +x rebar3
 
 script:
-  make && ./tests.sh
+  make && ./rebar3 clean && ./rebar3 compile && ./rebar3 eunit skip_deps=true && DEBUG=1 ./rebar3 coveralls send
 
 env:
   global:

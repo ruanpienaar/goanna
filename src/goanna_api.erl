@@ -162,7 +162,7 @@ trace(_,_,_,_) ->
 -spec trace_ms(string()) -> ok | {error, badarg}.
 trace_ms(MsStr) when is_list(MsStr) ->
     trace_ms(MsStr, []).
-	
+
 -spec trace_ms(string(), list()) -> ok | {error, badarg}.
 trace_ms(MsStr, Opts) ->
     {{M,F,A},MatchSpec,[_Flag]} = redbug_msc:transform(MsStr),

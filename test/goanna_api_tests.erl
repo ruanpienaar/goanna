@@ -11,7 +11,7 @@
 
 %% Find a smarter way of creating a remote node...
 api_test_() ->
-    {setup,
+    {foreach,
      fun setup/0,
      fun cleanup/1,
      [
@@ -462,32 +462,38 @@ list_active_traces() ->
     timer:sleep(50),
 
     %% Check that the others survived.
-    ?assert(length(ets:tab2list(tracelist)) == 2),
-    ?assert(length(goanna_api:list_active_traces()) == 2),
+    ?assertEqual(2, length(ets:tab2list(tracelist))),
+    ?assertEqual(2, length(goanna_api:list_active_traces())),
 
     ok = goanna_api:remove_node(Node).
 
 %%------------------------------------------------------------------------
 
 setup() ->
-    ok = application:load(kakapo),
+    % ok = application:load(kakapo),
     ok = application:set_env(kakapo, event_handler, []),
     [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok] =
         goanna_api:start(),
     {ok, Host} = inet:gethostname(),
     make_distrib("tests@"++Host, shortnames),
-    slave:start(Host, test1),
-    application:set_env(hawk, conn_retry_wait, 20),
-    ok.
+    {ok, SlaveNodeName} = slave:start(Host, test1),
+    % ok = application:load(hawk),
+    ok = application:set_env(hawk, conn_retry_wait, 20),
+    SlaveNodeName.
 
-cleanup(_) ->
+cleanup(SlaveNodeName) ->
+
+    [ ok = goanna_api:remove_node(NodeName) || {NodeName,_Cookie,_Type} <- goanna_api:nodes() ],
     [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok] =
         goanna_api:stop(),
-    stop_distrib(),
+    % ok = application:unload(hawk),
+    % ok = application:unload(kakapo),
+    ok = slave:stop(SlaveNodeName),
+    ok = stop_distrib(),
     ok.
 
 -spec make_distrib( NodeName::string()|atom(), NodeType::shortnames | longnames) ->
-    {ok, ActualNodeName::atom} | {error, Reason::term()}.
+    ActualNodeName::atom | {error, Reason::term()}.
 make_distrib(NodeName, NodeType) when is_list(NodeName) ->
     make_distrib(erlang:list_to_atom(NodeName), NodeType);
 make_distrib(NodeName, NodeType) ->
@@ -502,7 +508,7 @@ make_distrib(NodeName, NodeType) ->
     end.
 
 stop_distrib()->
-    net_kernel:stop().
+    ok = net_kernel:stop().
 
 forward(_Node, _TraceMessage) ->
     ok.
