@@ -11,7 +11,7 @@
 
 %% Find a smarter way of creating a remote node...
 api_test_() ->
-    {setup,
+    {foreach,
      fun setup/0,
      fun cleanup/1,
      [
@@ -69,10 +69,7 @@ goanna_api_add_node() ->
     {error,{already_started,GoannaNodePid}} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
     timer:sleep(1),
-    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
-
-    %% removing it
-    ok = goanna_api:remove_node(Node).
+    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes().
 
 goanna_api_add_node_cannot_connect() ->
     ok = application:set_env(goanna, max_reconnecion_attempts, 3),
@@ -91,8 +88,7 @@ goanna_api_add_node_cannot_connect() ->
     timer:sleep(200),
 
     %% Node should still not have connected. but hawk know's about it...
-    [] = goanna_api:nodes(),
-    ok = hawk:remove_node(FakeGoannaNode).
+    [] = goanna_api:nodes().
 
 goanna_api_add_node_validation() ->
     %% There should be no nodes, at first.
@@ -117,9 +113,7 @@ remove_node() ->
     {ok, _GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
     timer:sleep(1),
-    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
-    ok = goanna_api:remove_node(Node).
-
+    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes().
 
 remove_node_validation() ->
     %% There should be no nodes, at first.
@@ -176,9 +170,7 @@ update_default_trace_options() ->
     {ok,[]} = application:get_env(goanna, default_trace_options),
     GoannaState6 = sys:get_state(GoannaNode_Cookie),
     #?GOANNA_STATE{ trace_msg_total=false,
-                    trace_time=false } = GoannaState6,
-
-    ok = goanna_api:remove_node(Node).
+                    trace_time=false } = GoannaState6.
 
 update_default_trace_options_validation() ->
     %% try setting, when there are no nodes
@@ -218,9 +210,7 @@ update_default_trace_options_validation() ->
 
     GoannaState2 = sys:get_state(GoannaNode_Cookie),
     #?GOANNA_STATE{ trace_msg_total=false,
-                    trace_time=1000 } = GoannaState2,
-
-    ok = goanna_api:remove_node(Node).
+                    trace_time=1000 } = GoannaState2.
 
 set_data_retrival_method() ->
     %% There should be no nodes, at first.
@@ -250,9 +240,7 @@ set_data_retrival_method() ->
     ok = goanna_api:set_data_retrival_method({push, 100, ?MODULE}),
     {ok,{push, 100, ?MODULE}} = application:get_env(goanna, data_retrival_method),
     GoannaState3 = sys:get_state(GoannaNode_Cookie),
-    #?GOANNA_STATE{ data_retrival_method = {push, 100, ?MODULE} } = GoannaState3,
-
-    ok = goanna_api:remove_node(Node).
+    #?GOANNA_STATE{ data_retrival_method = {push, 100, ?MODULE} } = GoannaState3.
 
 
 set_data_retrival_method_validation() ->
@@ -273,9 +261,7 @@ set_data_retrival_method_validation() ->
     {error, badarg} = goanna_api:set_data_retrival_method(1234),
     {error, badarg} = goanna_api:set_data_retrival_method(test),
     {error, badarg} = goanna_api:set_data_retrival_method(push),
-    {error, badarg} = goanna_api:set_data_retrival_method({push, bla}),
-
-    ok = goanna_api:remove_node(Node).
+    {error, badarg} = goanna_api:set_data_retrival_method({push, bla}).
 
 trace() ->
     %% There should be no nodes, at first.
@@ -303,9 +289,7 @@ trace() ->
     true = ([] == goanna_api:pull_all_traces()),
     ok = goanna_test_module:function(),
     timer:sleep(50), %% Wait at least 50Msec for traces to be stored
-    ?assert([] =/= goanna_api:pull_all_traces()),
-
-    ok = goanna_api:remove_node(Node).
+    ?assert([] =/= goanna_api:pull_all_traces()).
 
 trace_validation() ->
     %% There should be no nodes, at first.
@@ -329,10 +313,7 @@ trace_validation() ->
     {error, badarg} = goanna_api:trace(1, 1, 1),
     {error, badarg} = goanna_api:trace(1, 1, 1, 1),
     {error, badarg} = goanna_api:trace(bla, bla, bla),
-    {error, badarg} = goanna_api:trace(bla, bla, bla, bla),
-
-    ok = goanna_api:remove_node(Node),
-    [] = goanna_api:nodes().
+    {error, badarg} = goanna_api:trace(bla, bla, bla, bla).
 
 stop_trace() ->
     %% There should be no nodes, at first.
@@ -377,9 +358,7 @@ stop_trace() ->
         trace_msg_count = 0,
         trace_timer_tref = false,
         trace_active = false
-    } = GoannaState3,
-
-    ok = goanna_api:remove_node(Node).
+    } = GoannaState3.
 
 reached_max_stop_trace() ->
     %% There should be no nodes, at first.
@@ -418,9 +397,7 @@ reached_max_stop_trace() ->
 
     timer:sleep(100),
     [] = ets:tab2list(tracelist),
-    [] = goanna_api:list_active_traces(),
-
-    ok = goanna_api:remove_node(Node).
+    [] = goanna_api:list_active_traces().
 
 list_active_traces() ->
     %% There should be no nodes, at first.
@@ -463,9 +440,7 @@ list_active_traces() ->
 
     %% Check that the others survived.
     ?assert(length(ets:tab2list(tracelist)) == 2),
-    ?assert(length(goanna_api:list_active_traces()) == 2),
-
-    ok = goanna_api:remove_node(Node).
+    ?assert(length(goanna_api:list_active_traces()) == 2).
 
 %%------------------------------------------------------------------------
 
@@ -483,6 +458,7 @@ setup() ->
 cleanup(_) ->
     [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok] =
         goanna_api:stop(),
+    ok = application:unload(kakapo),
     stop_distrib(),
     ok.
 

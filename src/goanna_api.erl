@@ -37,7 +37,7 @@
 -spec start() -> list().
 start() -> [ ok = application:ensure_started(APP) || APP <- apps() ].
 -spec stop() -> list().
-stop() -> [ ok = application:ensure_started(APP) || APP <- lists:reverse(apps()) ].
+stop() -> [ ok = application:stop(APP) || APP <- lists:reverse(apps()) ].
 -spec apps() -> list().
 apps() ->
     [asn1, crypto, public_key, ssl, compiler, inets, syntax_tools, sasl, kakapo, hawk, goanna].
@@ -162,7 +162,7 @@ trace(_,_,_,_) ->
 -spec trace_ms(string()) -> ok | {error, badarg}.
 trace_ms(MsStr) when is_list(MsStr) ->
     trace_ms(MsStr, []).
-	
+
 -spec trace_ms(string(), list()) -> ok | {error, badarg}.
 trace_ms(MsStr, Opts) ->
     {{M,F,A},MatchSpec,[_Flag]} = redbug_msc:transform(MsStr),
