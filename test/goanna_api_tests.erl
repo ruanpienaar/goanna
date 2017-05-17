@@ -400,6 +400,12 @@ reached_max_stop_trace() ->
     [] = goanna_api:list_active_traces().
 
 list_active_traces() ->
+    % trace([{goanna_db, truncate_tracelist},
+    %        {goanna_db, lookup},
+    %        {goanna_db, store},
+    %        {goanna_db, delete_child_id_tracelist},
+    %        {goanna_db, delete_child_id_trace_pattern}
+    % ]),
     %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
     {ok, Host} = inet:gethostname(),
@@ -424,6 +430,9 @@ list_active_traces() ->
     ok = goanna_api:trace(goanna_test_module, function2),
     ok = goanna_api:trace(goanna_test_module, function3, 1),
 
+    ?assert(length(ets:tab2list(tracelist)) == 3),
+    ?assert(length(goanna_api:list_active_traces()) == 3),
+
     %% Let's call the same thing again...
     ok = goanna_api:trace(goanna_test_module, function),
     ok = goanna_api:trace(goanna_test_module, function),
@@ -436,34 +445,37 @@ list_active_traces() ->
     ok = goanna_api:stop_trace(goanna_test_module, function),
 
     %% Ok, maybe we have to wait for the ets obj to be deleted.
-    timer:sleep(50),
+    % timer:sleep(50),
 
     %% Check that the others survived.
-    ?assert(length(ets:tab2list(tracelist)) == 2),
-    ?assert(length(goanna_api:list_active_traces()) == 2).
+    ?assertEqual(2, length(ets:tab2list(tracelist))),
+    ?assertEqual(2, length(goanna_api:list_active_traces())).
 
 %%------------------------------------------------------------------------
 
 setup() ->
-    ok = application:load(kakapo),
+    % ok = application:load(kakapo),
     ok = application:set_env(kakapo, event_handler, []),
     [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok] =
         goanna_api:start(),
     {ok, Host} = inet:gethostname(),
     make_distrib("tests@"++Host, shortnames),
-    slave:start(Host, test1),
-    application:set_env(hawk, conn_retry_wait, 20),
-    ok.
+    {ok, SlaveNodeName} = slave:start(Host, test1),
+    % ok = application:load(hawk),
+    ok = application:set_env(hawk, conn_retry_wait, 20),
+    SlaveNodeName.
 
-cleanup(_) ->
+cleanup(SlaveNodeName) ->
+
+    [ ok = goanna_api:remove_node(NodeName) || {NodeName,_Cookie,_Type} <- goanna_api:nodes() ],
     [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok] =
         goanna_api:stop(),
     ok = application:unload(kakapo),
-    stop_distrib(),
+    ok = stop_distrib(),
     ok.
 
 -spec make_distrib( NodeName::string()|atom(), NodeType::shortnames | longnames) ->
-    {ok, ActualNodeName::atom} | {error, Reason::term()}.
+    ActualNodeName::atom | {error, Reason::term()}.
 make_distrib(NodeName, NodeType) when is_list(NodeName) ->
     make_distrib(erlang:list_to_atom(NodeName), NodeType);
 make_distrib(NodeName, NodeType) ->
@@ -478,7 +490,22 @@ make_distrib(NodeName, NodeType) ->
     end.
 
 stop_distrib()->
-    net_kernel:stop().
+    ok = net_kernel:stop().
 
 forward(_Node, _TraceMessage) ->
     ok.
+
+% trace(L) ->
+%     start_dbg(),
+%     do_trace(L).
+
+% do_trace(L) when is_list(L) ->
+%     [ do_trace(I) || I <- L ];
+% do_trace({M}) ->
+%     dbg:tpl(M, cx);
+% do_trace({M,F}) ->
+%     dbg:tpl(M, F, cx).
+
+% start_dbg() ->
+%     dbg:tracer(),
+%     dbg:p(all, call).
