@@ -466,11 +466,11 @@ setup() ->
     SlaveNodeName.
 
 cleanup(SlaveNodeName) ->
-
     [ ok = goanna_api:remove_node(NodeName) || {NodeName,_Cookie,_Type} <- goanna_api:nodes() ],
     [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok] =
         goanna_api:stop(),
     ok = application:unload(kakapo),
+    ok = slave:stop(SlaveNodeName),
     ok = stop_distrib(),
     ok.
 
