@@ -62,13 +62,15 @@ goanna_api_add_node() ->
     %% Adding it
     {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    timer:sleep(1),
-    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
+    ?assert(is_pid(GoannaNodePid)),
+    % timer:sleep(1),
+    % [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
+    ?assertEqual(ok, wait_for_node({Node,Cookie,erlang_distribution}, 100, 25)),
 
     %% Adding a duplicate
     {error,{already_started,GoannaNodePid}} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    timer:sleep(1),
+    % timer:sleep(1),
     [{Node,Cookie,erlang_distribution}] = goanna_api:nodes().
 
 goanna_api_add_node_cannot_connect() ->
@@ -79,9 +81,11 @@ goanna_api_add_node_cannot_connect() ->
     FakeGoannaNode = 'blabla@blahost_blacookie',
 
     %% Adding it
-    {ok, _GoannaNodePid} =
+    {ok, GoannaNodePid} =
         goanna_api:add_node(FakeGoannaNode, cookie, erlang_distribution),
-    timer:sleep(1),
+    ?assert(is_pid(GoannaNodePid)),
+
+    %timer:sleep(1),
     [] = goanna_api:nodes(),
 
     %% wait for 3*50ms attempts...
@@ -110,10 +114,11 @@ remove_node() ->
     {error, no_such_node} = goanna_api:remove_node('fake@nohost'),
 
     %% Add, and then remove a known node:
-    {ok, _GoannaNodePid} =
+    {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    timer:sleep(1),
-    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes().
+    ?assert(is_pid(GoannaNodePid)),
+    % timer:sleep(1),
+    ?assertEqual(ok, wait_for_node({Node,Cookie,erlang_distribution}, 100, 25)).
 
 remove_node_validation() ->
     %% There should be no nodes, at first.
@@ -130,10 +135,11 @@ update_default_trace_options() ->
     GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
     %% Add a node
-    {ok, _GoannaNodePid} =
+    {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
+    ?assert(is_pid(GoannaNodePid)),
     timer:sleep(1),
-    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
+    ?assertEqual(ok, wait_for_node({Node,Cookie,erlang_distribution}, 100, 25)),
 
     %% Then get the default values
     undefined = application:get_env(goanna, default_trace_options),
@@ -190,10 +196,10 @@ update_default_trace_options_validation() ->
     GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
     %% Add a node
-    {ok, _GoannaNodePid} =
+    {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    timer:sleep(10),
-    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
+    ?assert(is_pid(GoannaNodePid)),
+    ?assertEqual(ok, wait_for_node({Node,Cookie,erlang_distribution}, 100, 25)),
 
     %% Change the default values, Then Check the newly set values
     ok = goanna_api:update_default_trace_options([{time, 1000}]),
@@ -221,10 +227,10 @@ set_data_retrival_method() ->
     GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
     %% Add a node
-    {ok, _GoannaNodePid} =
+    {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    timer:sleep(1),
-    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
+    ?assert(is_pid(GoannaNodePid)),
+    ?assertEqual(ok, wait_for_node({Node,Cookie,erlang_distribution}, 100, 25)),
 
     %% Check defaults:
     GoannaState = sys:get_state(GoannaNode_Cookie),
@@ -252,10 +258,10 @@ set_data_retrival_method_validation() ->
     _GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
     %% Add a node
-    {ok, _GoannaNodePid} =
+    {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    timer:sleep(1),
-    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
+    ?assert(is_pid(GoannaNodePid)),
+    ?assertEqual(ok, wait_for_node({Node,Cookie,erlang_distribution}, 100, 25)),
 
     %% Try and set something invalid:
     {error, badarg} = goanna_api:set_data_retrival_method(1234),
@@ -272,10 +278,10 @@ trace() ->
     GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
     %% Add a node
-    {ok, _GoannaNodePid} =
+    {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    timer:sleep(1),
-    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
+    ?assert(is_pid(GoannaNodePid)),
+    ?assertEqual(ok, wait_for_node({Node,Cookie,erlang_distribution}, 100, 25)),
 
     %% THen set the new data retrival method:
     ok = goanna_api:set_data_retrival_method(pull),
@@ -300,10 +306,10 @@ trace_validation() ->
     _GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
     %% Add a node
-    {ok, _GoannaNodePid} =
+    {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    timer:sleep(1),
-    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
+    ?assert(is_pid(GoannaNodePid)),
+    ?assertEqual(ok, wait_for_node({Node,Cookie,erlang_distribution}, 100, 25)),
 
     %% just trace some non-sense
     {error, badarg} = goanna_api:trace(1),
@@ -324,10 +330,10 @@ stop_trace() ->
     GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
     %% Add a node
-    {ok, _GoannaNodePid} =
+    {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    timer:sleep(1),
-    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
+    ?assert(is_pid(GoannaNodePid)),
+    ?assertEqual(ok, wait_for_node({Node,Cookie,erlang_distribution}, 100, 25)),
 
     ok = goanna_api:update_default_trace_options([{time, 1000}]),
 
@@ -369,10 +375,10 @@ reached_max_stop_trace() ->
     _GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
     %% Add a node
-    {ok, _GoannaNodePid} =
+    {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    timer:sleep(1),
-    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
+    ?assert(is_pid(GoannaNodePid)),
+    ?assertEqual(ok, wait_for_node({Node,Cookie,erlang_distribution}, 100, 25)),
 
     %% Disable based on time (ms)...
     ok = goanna_api:update_default_trace_options([{time, 100}, {messages,100}]),
@@ -414,10 +420,10 @@ list_active_traces() ->
     _GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
     %% Add a node
-    {ok, _GoannaNodePid} =
+    {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
-    timer:sleep(1),
-    [{Node,Cookie,erlang_distribution}] = goanna_api:nodes(),
+    ?assert(is_pid(GoannaNodePid)),
+    ?assertEqual(ok, wait_for_node({Node,Cookie,erlang_distribution}, 100, 25)),
 
     %% just allow the tracing to be set for a long time, to reliably test the below.
     ok = goanna_api:update_default_trace_options([{time, 60000}, {messages,1000000}]),
@@ -454,6 +460,7 @@ list_active_traces() ->
 %%------------------------------------------------------------------------
 
 setup() ->
+    timer:sleep(250),
     % ok = application:load(kakapo),
     ok = application:set_env(kakapo, event_handler, []),
     [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok] =
@@ -509,3 +516,14 @@ forward(_Node, _TraceMessage) ->
 % start_dbg() ->
 %     dbg:tracer(),
 %     dbg:p(all, call).
+
+wait_for_node(WaitingForNode, _WaitTime, Attempts) when Attempts =< 0 ->
+    {error, {node_not_found, WaitingForNode}};
+wait_for_node(WaitingForNode, WaitTime, Attempts) ->
+    case lists:member(WaitingForNode, goanna_api:nodes()) of
+        true ->
+            ok;
+        false ->
+            timer:sleep(WaitTime),
+            wait_for_node(WaitingForNode, WaitTime, Attempts-1)
+    end.
