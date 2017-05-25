@@ -523,6 +523,7 @@ wait_for_node(WaitingForNode, _WaitTime, Attempts) when Attempts =< 0 ->
 wait_for_node(WaitingForNode, WaitTime, Attempts) ->
     case lists:member(WaitingForNode, goanna_api:nodes()) of
         true ->
+            timer:sleep(WaitTime),
             ok;
         false ->
             timer:sleep(WaitTime),
