@@ -277,15 +277,16 @@ trace() ->
     Cookie = cookie,
     GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
+    %% THen set the new data retrival method:
+    ok = goanna_api:set_data_retrival_method(pull),
+
     %% Add a node
     {ok, GoannaNodePid} =
         goanna_api:add_node(Node, cookie, erlang_distribution),
     ?assert(is_pid(GoannaNodePid)),
     ?assertEqual(ok, wait_for_node({Node,Cookie,erlang_distribution}, 100, 25)),
 
-    %% THen set the new data retrival method:
-    ok = goanna_api:set_data_retrival_method(pull),
-    {ok,pull} = application:get_env(goanna, data_retrival_method),
+    ?assertEqual({ok,pull}, application:get_env(goanna, data_retrival_method)),
     GoannaState2 = sys:get_state(GoannaNode_Cookie),
     #?GOANNA_STATE{ data_retrival_method = pull } = GoannaState2,
 
