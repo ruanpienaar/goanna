@@ -560,20 +560,28 @@ list_property_or_default(Field, Opts, Default) ->
 reapply_traces(#?STATE{node = Node,
                        child_id=ChildId,
                        trace_time=TraceTime} = State) ->
-    TraceReapplyRes = [
-        begin
-            %% TODO: check if the trace time is still valid: ! Created Timestamp
-            % {trc, TrcPattern} = lists:keyfind(trc, 1, Opts),
-            %%?CRITICAL("!!! re-tracing - ~p", [TrcPattern]),
-            ok = enable_tracing(Node, TrcPattern)
-        end
-    || {{C, TrcPattern},_Timestamp, _Opts} <- ets:tab2list(tracelist), C =:=ChildId],
-    case TraceReapplyRes of
+    % TraceReapplyRes = [
+    %     begin
+    %         %% TODO: check if the trace time is still valid: ! Created Timestamp
+    %         % {trc, TrcPattern} = lists:keyfind(trc, 1, Opts),
+    %         %%?CRITICAL("!!! re-tracing - ~p", [TrcPattern]),
+    %         ok = enable_tracing(Node, TrcPattern)
+    %     end
+    % || {{C, TrcPattern},_Opts} <- ets:tab2list(tracelist), C =:=ChildId],
+    % case TraceReapplyRes of
+    case ets:tab2list(tracelist) of
         [] ->
             State;
-        _Else ->
-            State#?STATE{ % Take trace_msg_total & trace_time, from what was set at init()
-                trace_timer_tref = new_trace_timer(ChildId, TraceTime, false), % There couldn't have been a timer...
+        Traces ->
+            %% TODO: add trace timers per trace pattern
+            ok = lists:foreach(
+                fun({{C, TrcPattern},_Opts}) when C==ChildId ->
+                    ok = enable_tracing(Node, TrcPattern)
+                end,
+                Traces
+            ),
+            State#?STATE{
+                trace_timer_tref = new_trace_timer(ChildId, TraceTime, false),
                 trace_active = true
             }
     end.
