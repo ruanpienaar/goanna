@@ -11,3 +11,4 @@ goanna
 _build
 rebar.lock
 rebar3
+sys.config
