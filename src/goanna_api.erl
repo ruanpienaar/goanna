@@ -34,13 +34,17 @@
 
 %%------------------------------------------------------------------------
 %% Goanna start-up helper only
--spec start() -> list().
-start() -> [ ok = application:ensure_started(APP) || APP <- apps() ].
--spec stop() -> list().
-stop() -> [ ok = application:stop(APP) || APP <- lists:reverse(apps()) ].
--spec apps() -> list().
-apps() ->
-    [asn1, crypto, public_key, ssl, compiler, inets, syntax_tools, sasl, kakapo, hawk, goanna].
+% -spec start() -> list().
+% start() -> [ ok = application:ensure_started(APP) || APP <- apps() ].
+% -spec stop() -> list().
+% stop() -> [ ok = application:stop(APP) || APP <- lists:reverse(apps()) ].
+% -spec apps() -> list().
+% apps() ->
+%     [asn1, crypto, public_key, ssl, compiler, inets, syntax_tools, sasl, kakapo, hawk, goanna].
+start() ->
+    application:ensure_all_started(goanna).
+stop() ->
+    application:stop(goanna).
 %%------------------------------------------------------------------------
 
 %%------------------------------------------------------------------------
