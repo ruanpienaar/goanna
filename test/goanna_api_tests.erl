@@ -467,9 +467,7 @@ setup() ->
         % **in function slave:start/5 (slave.erl, line 198)
         % in call from goanna_api_tests:setup/0 (/home/travis/build/ruanpienaar/goanna/_build/test/lib/goanna/test/goanna_api_tests.erl, line 464)
         % **exit:not_alive
-    try_slave(Host),
-    {ok, SlaveNodeName} = slave:start(Host, test1),
-
+    {ok, SlaveNodeName} = try_slave(Host),
     % ok = application:load(hawk),
     ok = application:set_env(hawk, conn_retry_wait, 20),
     SlaveNodeName.
@@ -481,7 +479,7 @@ try_slave(_Host,X) when X =< 0 ->
     exit(1);
 try_slave(Host, X) when is_integer(X) ->
     try
-        ok
+        slave:start(Host, test1)
     catch
         C:E ->
             ?debugFmt("try_slave ~p ~p", [?LINE, {C, E, erlang:get_stacktrace()}]),
