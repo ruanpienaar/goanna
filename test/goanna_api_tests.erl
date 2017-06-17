@@ -15,38 +15,33 @@ api_test_() ->
      fun setup/0,
      fun cleanup/1,
      [
-          {"API -> nodes/0",
-            fun goanna_api_nodes/0}
-        , {"API -> add_node/3",
-            fun goanna_api_add_node/0}
-        , {"API -> add_node_cannot_connect/3",
-            fun goanna_api_add_node_cannot_connect/0}
-        , {"API -> add_node/3 validation tests",
-            fun goanna_api_add_node_validation/0}
-        , {"API -> remove_node/1",
-            fun remove_node/0}
-        , {"API -> remove_node/1 validation tests",
-            fun remove_node_validation/0}
-        , {"API -> update_default_trace_options/1",
-            fun update_default_trace_options/0}
-        , {"API -> update_default_trace_options/1 validation tests",
-            fun update_default_trace_options_validation/0}
-        , {"API -> set_data_retrival_method_validation/1 validation tests",
-            fun set_data_retrival_method_validation/0}
-        , {"API -> set_data_retrival_method/1 validation tests",
-            fun set_data_retrival_method/0}
-        , {"API -> trace tests",
-            fun trace/0}
-        , {"API -> trace_validation tests",
-            fun trace_validation/0}
-        , {"API -> stop_trace tests",
-            fun stop_trace/0}
-        , {"API -> reached_max_stop_trace tests",
-            fun reached_max_stop_trace/0}
-        , {"API -> list_active_traces tests",
-            fun list_active_traces/0}
+        ?_assert(ok==try_test_fun(fun goanna_api_nodes/0)),
+        ?_assert(ok==try_test_fun(fun goanna_api_add_node/0)),
+        ?_assert(ok==try_test_fun(fun goanna_api_add_node_cannot_connect/0)),
+        ?_assert(ok==try_test_fun(fun goanna_api_add_node_validation/0)),
+        ?_assert(ok==try_test_fun(fun remove_node/0)),
+        ?_assert(ok==try_test_fun(fun remove_node_validation/0)),
+        ?_assert(ok==try_test_fun(fun update_default_trace_options/0)),
+        ?_assert(ok==try_test_fun(fun update_default_trace_options_validation/0)),
+        ?_assert(ok==try_test_fun(fun set_data_retrival_method_validation/0)),
+        ?_assert(ok==try_test_fun(fun set_data_retrival_method/0)),
+        ?_assert(ok==try_test_fun(fun trace/0)),
+        ?_assert(ok==try_test_fun(fun trace_validation/0)),
+        ?_assert(ok==try_test_fun(fun stop_trace/0)),
+        ?_assert(ok==try_test_fun(fun reached_max_stop_trace/0)),
+        ?_assert(ok==try_test_fun(fun list_active_traces/0))
      ]
     }.
+
+try_test_fun(TestFun) ->
+    try
+        TestFun(),
+        ok
+    catch
+        C:E ->
+            ?debugFmt("test failed: ~p",[{C,E,erlang:get_stacktrace()}]),
+            failed
+    end.
 
 goanna_api_nodes() ->
     %% There should be no nodes, at first.
@@ -461,11 +456,9 @@ list_active_traces() ->
 %%------------------------------------------------------------------------
 
 setup() ->
-    timer:sleep(250),
     % ok = application:load(kakapo),
     ok = application:set_env(kakapo, event_handler, []),
-    [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok] =
-        goanna_api:start(),
+    {ok,_} = goanna_api:start(),
     {ok, Host} = inet:gethostname(),
     make_distrib("tests@"++Host, shortnames),
     {ok, SlaveNodeName} = slave:start(Host, test1),
@@ -475,9 +468,9 @@ setup() ->
 
 cleanup(SlaveNodeName) ->
     [ ok = goanna_api:remove_node(NodeName) || {NodeName,_Cookie,_Type} <- goanna_api:nodes() ],
-    [ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok] =
-        goanna_api:stop(),
-    ok = application:unload(kakapo),
+    [ ok = application:stop(App) ||
+        {App,_ErtsVsn,_Vsn}
+        <- application:which_applications(), App /= kernel andalso App /= stdlib ],
     ok = slave:stop(SlaveNodeName),
     ok = stop_distrib(),
     ok.
