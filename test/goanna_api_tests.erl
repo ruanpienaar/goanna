@@ -483,7 +483,7 @@ try_slave(Host, X) when is_integer(X) ->
     catch
         C:E ->
             ?debugFmt("try_slave ~p ~p", [?LINE, {C, E, erlang:get_stacktrace()}]),
-            timer:sleep(25),
+            timer:sleep(250),
             try_slave(Host, X-1)
     end.
 
