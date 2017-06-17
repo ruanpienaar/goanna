@@ -461,10 +461,34 @@ setup() ->
     {ok,_} = goanna_api:start(),
     {ok, Host} = inet:gethostname(),
     make_distrib("tests@"++Host, shortnames),
+
+    %% Travis CI errors:
+        % *** context setup failed ***
+        % **in function slave:start/5 (slave.erl, line 198)
+        % in call from goanna_api_tests:setup/0 (/home/travis/build/ruanpienaar/goanna/_build/test/lib/goanna/test/goanna_api_tests.erl, line 464)
+        % **exit:not_alive
+    try_slave(Host),
     {ok, SlaveNodeName} = slave:start(Host, test1),
+
     % ok = application:load(hawk),
     ok = application:set_env(hawk, conn_retry_wait, 20),
     SlaveNodeName.
+
+try_slave(Host) ->
+    try_slave(Host, 10).
+
+try_slave(_Host,X) when X =< 0 ->
+    exit(1);
+try_slave(Host, X) when is_integer(X) ->
+    try
+        ok
+    catch
+        C:E ->
+            ?debugFmt("try_slave ~p ~p", [?LINE, {C, E, erlang:get_stacktrace()}]),
+            timer:sleep(25),
+            try_slave(Host, X-1)
+    end.
+
 
 cleanup(SlaveNodeName) ->
     [ ok = goanna_api:remove_node(NodeName) || {NodeName,_Cookie,_Type} <- goanna_api:nodes() ],
