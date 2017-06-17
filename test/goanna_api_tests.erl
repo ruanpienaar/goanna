@@ -461,6 +461,7 @@ setup() ->
     {ok,_} = goanna_api:start(),
     {ok, Host} = inet:gethostname(),
     make_distrib("tests@"++Host, shortnames),
+    timer:sleep(150),
 
     %% Travis CI errors:
         % *** context setup failed ***
@@ -483,7 +484,7 @@ try_slave(Host, X) when is_integer(X) ->
     catch
         C:E ->
             ?debugFmt("try_slave ~p ~p", [?LINE, {C, E, erlang:get_stacktrace()}]),
-            timer:sleep(250),
+            timer:sleep(150),
             try_slave(Host, X-1)
     end.
 
