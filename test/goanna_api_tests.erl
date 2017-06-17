@@ -456,12 +456,12 @@ list_active_traces() ->
 %%------------------------------------------------------------------------
 
 setup() ->
+    timer:sleep(250),
     % ok = application:load(kakapo),
     ok = application:set_env(kakapo, event_handler, []),
     {ok,_} = goanna_api:start(),
     {ok, Host} = inet:gethostname(),
     try_dist("tests@"++Host, shortnames),
-    timer:sleep(150),
 
     %% Travis CI errors:
         % *** context setup failed ***
