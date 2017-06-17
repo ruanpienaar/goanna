@@ -50,7 +50,7 @@ goanna_api_nodes() ->
 goanna_api_add_node() ->
     %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
-    {ok, Host} = inet:gethostname(),
+    Host = "localhost",
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
 
@@ -101,7 +101,7 @@ goanna_api_add_node_validation() ->
 remove_node() ->
     %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
-    {ok, Host} = inet:gethostname(),
+    Host = "localhost",
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
 
@@ -124,7 +124,7 @@ remove_node_validation() ->
 update_default_trace_options() ->
     %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
-    {ok, Host} = inet:gethostname(),
+    Host = "localhost",
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
     GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
@@ -185,7 +185,7 @@ update_default_trace_options_validation() ->
 
     %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
-    {ok, Host} = inet:gethostname(),
+    Host = "localhost",
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
     GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
@@ -216,7 +216,7 @@ update_default_trace_options_validation() ->
 set_data_retrival_method() ->
     %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
-    {ok, Host} = inet:gethostname(),
+    Host = "localhost",
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
     GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
@@ -247,7 +247,7 @@ set_data_retrival_method() ->
 set_data_retrival_method_validation() ->
     %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
-    {ok, Host} = inet:gethostname(),
+    Host = "localhost",
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
     _GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
@@ -267,7 +267,7 @@ set_data_retrival_method_validation() ->
 trace() ->
     %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
-    {ok, Host} = inet:gethostname(),
+    Host = "localhost",
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
     GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
@@ -296,7 +296,7 @@ trace() ->
 trace_validation() ->
     %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
-    {ok, Host} = inet:gethostname(),
+    Host = "localhost",
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
     _GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
@@ -320,7 +320,7 @@ trace_validation() ->
 stop_trace() ->
     %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
-    {ok, Host} = inet:gethostname(),
+    Host = "localhost",
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
     GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
@@ -365,7 +365,7 @@ stop_trace() ->
 reached_max_stop_trace() ->
     %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
-    {ok, Host} = inet:gethostname(),
+    Host = "localhost",
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
     _GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
@@ -410,7 +410,7 @@ list_active_traces() ->
     % ]),
     %% There should be no nodes, at first.
     [] = goanna_api:nodes(),
-    {ok, Host} = inet:gethostname(),
+    Host = "localhost",
     Node = list_to_atom("tests@"++Host),
     Cookie = cookie,
     _GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
@@ -460,7 +460,7 @@ setup() ->
     % ok = application:load(kakapo),
     ok = application:set_env(kakapo, event_handler, []),
     {ok,_} = goanna_api:start(),
-    {ok, Host} = inet:gethostname(),
+    Host = "localhost",
     try_dist("tests@"++Host, shortnames),
 
     %% Travis CI errors:
@@ -530,7 +530,7 @@ cleanup(SlaveNodeName) ->
 %             CurrNode
 %     end.
 
-stop_distrib()->
+stop_distrib() ->
     ok = net_kernel:stop().
 
 forward(_Node, _TraceMessage) ->
