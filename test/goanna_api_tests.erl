@@ -480,7 +480,7 @@ try_dist(_Nodename, _Type, X) when X =< 0 ->
     exit(1);
 try_dist(NodeName, NodeType, X) when is_integer(X) ->
     try
-        {ok,_} = net_kernel:start([list_to_atom(NodeName), NodeType])
+        net_kernel:start([list_to_atom(NodeName), NodeType])
     catch
         C:E ->
             ?debugFmt("try_dist ~p ~p", [?LINE, {C, E, erlang:get_stacktrace()}]),
