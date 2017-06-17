@@ -460,7 +460,7 @@ setup() ->
     ok = application:set_env(kakapo, event_handler, []),
     {ok,_} = goanna_api:start(),
     {ok, Host} = inet:gethostname(),
-    make_distrib("tests@"++Host, shortnames),
+    try_dist("tests@"++Host, shortnames),
     timer:sleep(150),
 
     %% Travis CI errors:
@@ -473,8 +473,23 @@ setup() ->
     ok = application:set_env(hawk, conn_retry_wait, 20),
     SlaveNodeName.
 
+try_dist(NodeName,NodeType) ->
+    try_dist(NodeName, NodeType, 5).
+
+try_dist(_Nodename, _Type, X) when X =< 0 ->
+    exit(1);
+try_dist(NodeName, NodeType, X) when is_integer(X) ->
+    try
+        {ok,_} = net_kernel:start([list_to_atom(NodeName), NodeType])
+    catch
+        C:E ->
+            ?debugFmt("try_dist ~p ~p", [?LINE, {C, E, erlang:get_stacktrace()}]),
+            timer:sleep(1000),
+            try_dist(NodeName, NodeType, X-1)
+    end.
+
 try_slave(Host) ->
-    try_slave(Host, 10).
+    try_slave(Host, 100).
 
 try_slave(_Host,X) when X =< 0 ->
     exit(1);
@@ -484,7 +499,7 @@ try_slave(Host, X) when is_integer(X) ->
     catch
         C:E ->
             ?debugFmt("try_slave ~p ~p", [?LINE, {C, E, erlang:get_stacktrace()}]),
-            timer:sleep(150),
+            timer:sleep(50),
             try_slave(Host, X-1)
     end.
 
@@ -498,20 +513,22 @@ cleanup(SlaveNodeName) ->
     ok = stop_distrib(),
     ok.
 
--spec make_distrib( NodeName::string()|atom(), NodeType::shortnames | longnames) ->
-    ActualNodeName::atom | {error, Reason::term()}.
-make_distrib(NodeName, NodeType) when is_list(NodeName) ->
-    make_distrib(erlang:list_to_atom(NodeName), NodeType);
-make_distrib(NodeName, NodeType) ->
-    case node() of
-        'nonode@nohost' ->
-            [] = os:cmd("epmd -daemon"),
-            case net_kernel:start([NodeName, NodeType]) of
-                {ok, _Pid} -> node()
-            end;
-        CurrNode ->
-            CurrNode
-    end.
+
+
+% -spec make_distrib( NodeName::string()|atom(), NodeType::shortnames | longnames) ->
+%     ActualNodeName::atom | {error, Reason::term()}.
+% make_distrib(NodeName, NodeType) when is_list(NodeName) ->
+%     make_distrib(erlang:list_to_atom(NodeName), NodeType);
+% make_distrib(NodeName, NodeType) ->
+%     case node() of
+%         'nonode@nohost' ->
+%             [] = os:cmd("epmd -daemon"),
+%             case net_kernel:start([NodeName, NodeType]) of
+%                 {ok, _Pid} -> node()
+%             end;
+%         CurrNode ->
+%             CurrNode
+%     end.
 
 stop_distrib()->
     ok = net_kernel:stop().
