@@ -572,8 +572,11 @@ reapply_traces(#?STATE{node = Node,
         Traces ->
             %% TODO: add trace timers per trace pattern
             ok = lists:foreach(
-                fun({{C, TrcPattern},_Opts}) when C==ChildId ->
-                    ok = enable_tracing(Node, TrcPattern)
+                fun
+                    ({{C, TrcPattern},_Opts}) when C==ChildId ->
+                        ok = enable_tracing(Node, TrcPattern);
+                    ({{_, _TrcPattern},_Opts}) ->
+                        ok
                 end,
                 Traces
             ),
