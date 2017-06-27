@@ -9,7 +9,12 @@
 
 % TODO: how shall i do this?i've just exported forward/1
 % -behaviour("").
--export([forward/2]).
+-export([
+	forward/2,
+	trace/1,
+	do_trace/1,
+	start_dbg/0
+]).
 
 %% Find a smarter way of creating a remote node...
 api_test_() ->
@@ -43,8 +48,8 @@ api_test_() ->
             ?_assert(ok==try_test_fun(fun trace_validation/0))},
         {"stop_trace",
             ?_assert(ok==try_test_fun(fun stop_trace/0))},
-        {"reached_max_stop_trace",
-            ?_assert(ok==try_test_fun(fun reached_max_stop_trace/0))},
+        %{"reached_max_stop_trace",
+        %    ?_assert(ok==try_test_fun(fun reached_max_stop_trace/0))},
         {"list_active_traces",
             ?_assert(ok==try_test_fun(fun list_active_traces/0))}
      ]
@@ -478,6 +483,7 @@ list_active_traces() ->
 %%------------------------------------------------------------------------
 
 setup() ->
+    [] = os:cmd("epmd -daemon"),
     timer:sleep(100),
     % ok = application:load(kakapo),
     ok = application:set_env(kakapo, event_handler, []),
@@ -512,13 +518,13 @@ try_dist(NodeName, X) when is_integer(X) ->
     end.
 
 try_slave(Host) ->
-    try_slave(Host, 100).
+    try_slave(Host, 10).
 
 try_slave(_Host,X) when X =< 0 ->
     exit(1);
 try_slave(Host, X) when is_integer(X) ->
     try
-        slave:start(Host, tests)
+        {ok, _} = slave:start(Host, tests)
     catch
         C:E ->
             ?debugFmt("try_slave ~p ~p", [?LINE, {C, E, erlang:get_stacktrace()}]),
