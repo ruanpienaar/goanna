@@ -285,11 +285,7 @@ tcpip_port_trace_steps(Node, Cookie) ->
     [_Name, RelayHost] = string:tokens(atom_to_list(Node), "@"),
     case dbg_start(Node) of
         {ok, RemoteDbgPid} ->
-            case rpc:call(Node, erlang, whereis, [code_server]) of
-                Pid when is_pid(Pid) ->
-                   ok
-            end,
-            %% Dbg pid is already linked...
+            ok = wait_for_remote_code_server(Node),
             PortGenerator = rpc:call(Node, dbg, trace_port, [ip, RelayPort]),
             case rpc:call(Node, dbg, tracer, [port, PortGenerator]) of
                 {error, already_started} ->
@@ -310,6 +306,7 @@ tcpip_port_trace_steps(Node, Cookie) ->
 file_port_trace_steps(Node, Cookie) ->
     case dbg_start(Node) of
         {ok, RemoteDbgPid} ->
+            ok = wait_for_remote_code_server(Node),
             PortGenerator = rpc:call(Node, dbg, trace_port, [file, "/Users/rp/hd2/code/goanna/tracefile"]),
             case rpc:call(Node, dbg, tracer, [port, PortGenerator]) of
                 {error, already_started} ->
@@ -344,6 +341,19 @@ erlang_distribution_trace_steps(Node, Cookie) ->
             {ok, RemoteDbgPid};
         Error ->
             Error
+    end.
+
+wait_for_remote_code_server(Node) ->
+    wait_for_remote_code_server(Node, 100).
+
+wait_for_remote_code_server(Node, Attempts) when Attempts =< 0 ->
+    {error, {Node, undefined, code_server}};
+wait_for_remote_code_server(Node, Attempts) when Attempts > 0 ->
+    case rpc:call(Node, erlang, whereis, [code_server]) of 
+        undefined ->
+            wait_for_remote_code_server(Node, Attempts-1);
+        Pid when is_pid(Pid) ->
+            ok
     end.
 
 dbg_p(Node) ->
