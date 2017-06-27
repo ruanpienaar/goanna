@@ -349,8 +349,9 @@ wait_for_remote_code_server(Node) ->
 wait_for_remote_code_server(Node, Attempts) when Attempts =< 0 ->
     {error, {Node, undefined, code_server}};
 wait_for_remote_code_server(Node, Attempts) when Attempts > 0 ->
-    case rpc:call(Node, erlang, whereis, [code_server]) of 
+    case rpc:call(Node, erlang, whereis, [code_server]) of
         undefined ->
+            timer:sleep(25),
             wait_for_remote_code_server(Node, Attempts-1);
         Pid when is_pid(Pid) ->
             ok
