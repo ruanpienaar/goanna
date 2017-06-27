@@ -557,15 +557,6 @@ list_property_or_default(Field, Opts, Default) ->
 reapply_traces(#?STATE{node = Node,
                        child_id=ChildId,
                        trace_time=TraceTime} = State) ->
-    % TraceReapplyRes = [
-    %     begin
-    %         %% TODO: check if the trace time is still valid: ! Created Timestamp
-    %         % {trc, TrcPattern} = lists:keyfind(trc, 1, Opts),
-    %         %%?CRITICAL("!!! re-tracing - ~p", [TrcPattern]),
-    %         ok = enable_tracing(Node, TrcPattern)
-    %     end
-    % || {{C, TrcPattern},_Opts} <- ets:tab2list(tracelist), C =:=ChildId],
-    % case TraceReapplyRes of
     case ets:tab2list(tracelist) of
         [] ->
             State;

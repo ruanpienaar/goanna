@@ -26,7 +26,11 @@
 %% ===================================================================
 -spec start_link() -> {ok, pid()}.
 start_link() ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, [application:get_env(goanna, nodes, [])]).
+    {ok, Pid} = supervisor:start_link({local, ?MODULE}, ?MODULE, []),
+    ok = lists:foreach(fun([{node,Node},{cookie,Cookie},{type,Type}]) ->
+        {ok,_} = goanna_api:add_node(Node, Cookie, Type)
+    end, application:get_env(goanna, nodes, [])),
+    {ok, Pid}.
 
 -spec start_child(node(), atom(), erlang_distribution | file | tcpip_port) -> {ok, supervisor:child()} | {error,{already_started,pid()}}.
 start_child(Node, Cookie, Type) ->
@@ -35,6 +39,15 @@ start_child(Node, Cookie, Type) ->
     case whereis(ChildId) of
         undefined ->
             {ok, NodeObj} = goanna_db:init_node([Node, Cookie, Type]),
+            %% Add the trace patterns from the sys.config to the ets table tracelist,
+            %% so that goanna_node startup will read them and apply them on startup.
+            DefaultTraceOpts = [{time, false}, {messages, false}],
+            TraceOpts = application:get_env(goanna, default_trace_options, DefaultTraceOpts),
+            ok = lists:foreach(fun(TrcProplist) ->
+                TrcPattern = build_trace_pattern(TrcProplist),
+                true = goanna_db:store([tracelist, ChildId, TrcPattern], TraceOpts)
+            end, application:get_env(goanna, traces, [])),
+
             supervisor:start_child(?MODULE, ?CHILD(ChildId, goanna_node, worker, [NodeObj]));
         ChildIdPid ->
             {error,{already_started,ChildIdPid}}
@@ -56,14 +69,11 @@ delete_child(Node) ->
 %% Supervisor callbacks
 %% ===================================================================
 -spec init(list()) -> {ok,term()}.
-init([SysConfNodes]) when is_list(SysConfNodes) ->
+init([]) ->
     RestartStrategy = one_for_one,
     MaxRestarts = 10000,
     MaxSecondsBetweenRestarts = 9600,
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
-    lists:foreach(fun([{node,Node},{cookie,Cookie},{type,Type}]) ->
-        goanna_api:add_node(Node, Cookie, Type)
-    end, SysConfNodes),
     {ok, {SupFlags, []}}.
 
 -spec id(node(), atom()) -> atom().
@@ -74,3 +84,9 @@ id(Node, Cookie) ->
 to_node(ChildId) when is_atom(ChildId) ->
     [Node, Cookie] = string:tokens(atom_to_list(ChildId), ?NODE_COOKIE_SEP),
     [list_to_atom(Node), list_to_atom(Cookie)].
+
+build_trace_pattern(TrcProplist) ->
+    #trc_pattern{m=proplists:get_value(module, TrcProplist),
+                 f=proplists:get_value(function, TrcProplist),
+                 a=proplists:get_value(arity, TrcProplist)
+    }.
