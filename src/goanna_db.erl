@@ -1,11 +1,11 @@
 -module (goanna_db).
 -export ([init/0,
           init_node/1,
-          node_table_exists/2,
           nodes/0,
           store/2,
           lookup/1,
-          delete_node/1,
+          all/1,
+          delete_node/2,
           delete_child_id_tracelist/2,
           delete_child_id_trace_pattern/3,
           truncate_tracelist/1,
@@ -26,71 +26,63 @@ init_node([Node, Cookie, Type]) ->
     NodeObj = {Node, Cookie, Type},
     true = ets:insert(nodelist, NodeObj),
     ChildId = goanna_node_sup:id(Node, Cookie),
-    case ets:info(ChildId, size) of
-        undefined ->
-            ChildId = ets:new(ChildId, [public, ordered_set, named_table]);
-        Size when is_integer(Size) -> %% Table already exists, why would it exist?
-            ok
-    end,
+    %% Table shouldn't exist, but crash if it does...
+    undefined = ets:info(ChildId, size),
+    ChildId = ets:new(ChildId, [public, ordered_set, named_table]),
     {ok, NodeObj}.
-
--spec node_table_exists(node(), atom()) -> boolean().
-node_table_exists(Node, Cookie) ->
-    ChildId = goanna_node_sup:id(Node, Cookie),
-    case ets:info(ChildId, size) of
-        undefined            -> false;
-        S when is_integer(S) -> true
-    end.
 
 -spec nodes() -> list().
 nodes() ->
     ets:tab2list(nodelist).
 
--spec store(atom() | list(), term()) -> ok | {error, term()}.
+-spec store(atom() | list(), term()) -> true | {error, term()}.
 store(ChildId, Trace) when is_atom(ChildId) ->
-    ets:insert(ChildId, Trace);
-
+    true = ets:insert(ChildId, Trace);
 store([trace, ChildId], {trace_ts,P,L,I,T}) ->
-    ets:insert(ChildId, {T, {trace_ts,P,L,I,T}});
+    true = ets:insert(ChildId, {T, {trace_ts,P,L,I,T}});
 store([trace, ChildId], {trace_ts,P,L,I,E,T}) ->
-    ets:insert(ChildId, {T, {trace_ts,P,L,I,E,T}});
+    true = ets:insert(ChildId, {T, {trace_ts,P,L,I,E,T}});
 store([trace, Node, Cookie], Trace) ->
     store([trace, goanna_node_sup:id(Node, Cookie)], Trace);
 store([tracelist, ChildId, TrcPattern], Opts) ->
-    ets:insert(tracelist, {{ChildId, TrcPattern}, Opts}).
+    true = ets:insert(tracelist, {{ChildId, TrcPattern}, Opts}).
 
 -spec lookup(list()) -> term().
 lookup([nodelist, Node]) ->
     ets:lookup(nodelist, Node);
-lookup([trc_pattern, ChildId, TrcPattern]) ->
+lookup([tracelist, ChildId, TrcPattern]) ->
     ets:lookup(tracelist, {ChildId, TrcPattern});
-lookup([trc_pattern, Node, Cookie, TrcPattern]) ->
+lookup([tracelist, Node, Cookie, TrcPattern]) ->
     ChildId = goanna_node_sup:id(Node, Cookie),
     ets:lookup(tracelist, {ChildId, TrcPattern});
 lookup([trace, Tbl, Key]) ->
     ets:lookup(Tbl, Key).
 
--spec delete_node(atom()) -> ok | {error, term()}.
-delete_node(Node) ->
-    ets:delete(nodelist, Node).
+all(tracelist) ->
+    ets:tab2list(tracelist).
+
+-spec delete_node(atom(), atom()) -> true | {error, term()}.
+delete_node(Node, Cookie) ->
+    true = ets:delete(goanna_node_sup:id(Node, Cookie)),
+    true = ets:delete(nodelist, Node).
 
 -spec delete_child_id_tracelist(node(), atom()) -> ok | {error, term()}.
 delete_child_id_tracelist(Node, Cookie) ->
     ChildId = goanna_node_sup:id(Node, Cookie),
-    ets:match_delete(tracelist, {{ChildId, '_'}, '_'}).
+    true = ets:match_delete(tracelist, {{ChildId, '_'}, '_'}).
 
 -spec delete_child_id_trace_pattern(node(), atom(), term()) -> ok | {error, term()}.
 delete_child_id_trace_pattern(Node, Cookie, TrcPattern) ->
     ChildId = goanna_node_sup:id(Node, Cookie),
-    ets:match_delete(tracelist, {{ChildId, TrcPattern}, '_'}).
+    true = ets:match_delete(tracelist, {{ChildId, TrcPattern}, '_'}).
 
 -spec truncate_tracelist(list()) -> [] | {error, term()}.
 truncate_tracelist([]) ->
-    ets:delete_all_objects(tracelist).
+    true = ets:delete_all_objects(tracelist).
 
 -spec truncate_traces(term()) -> ok | {error, term()}.
 truncate_traces(Tbl) ->
-    ets:delete_all_objects(Tbl).
+    ok = ets:delete_all_objects(Tbl).
 
 -spec first(atom()) -> '$end_of_table' | term().
 first(Tbl) ->
@@ -107,7 +99,7 @@ lookup_entry(Tbl, Key) ->
 	ets:lookup(Tbl, Key).
 
 delete(Tbl, Key) ->
-	ets:delete(Tbl, Key).
+	true = ets:delete(Tbl, Key).
 
 -spec pull(atom()) -> list().
 pull(Tbl) ->

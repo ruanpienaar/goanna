@@ -13,8 +13,8 @@
                   compiler,
                   inets,
                   syntax_tools,
-                  sasl,
-                  kakapo,
+                  % sasl,
+                  % kakapo,
                   hawk
                  ]},
   {mod, { goanna_app, []}},

@@ -99,7 +99,6 @@ do_monitor_node(Node, ConnectAttemptTref) ->
 	        end
     end.
 
-
 trace(_ChildId, [], _, _) ->
     ok;
 trace(ChildId, [H|T], UpdatedOpts2, Node) ->
@@ -107,7 +106,7 @@ trace(ChildId, [H|T], UpdatedOpts2, Node) ->
     _ = trace(ChildId, H, UpdatedOpts2, Node),
     trace(ChildId, T, UpdatedOpts2, Node);
 trace(ChildId, TrcPattern, UpdatedOpts2, Node) ->
-    case goanna_db:lookup([trc_pattern, ChildId, TrcPattern]) of
+    case goanna_db:lookup([tracelist, ChildId, TrcPattern]) of
         [] ->
             true = goanna_db:store([tracelist, ChildId, TrcPattern], UpdatedOpts2),
             enable_tracing(Node, TrcPattern);
@@ -173,28 +172,27 @@ handle_call({trace_item, Trace}, _From, #?STATE{ node=Node,
                                                  type=Type } = State) when TMC >= TMT ->
     %%?DEBUG("[~p] [~p] Trace message count limit reached...", [?MODULE, Node]),
     true=goanna_db:store([trace, State#?STATE.child_id], Trace),
-    ok  = disable_all_tracing(Connected, Node, Cookie),
+    ok = disable_all_tracing(Connected, Node, Cookie),
     {ok,_} = clear_tracelist_restart_dbg(Node, Cookie, Type),
     ok = cancel_timer(State#?STATE.trace_timer_tref),
-    {reply, stop_tracing, State#?STATE{trace_msg_count = 0,
-                                       trace_timer_tref = false,
-                                       trace_active = false
+    {reply, stop_tracing, State#?STATE{
+        trace_msg_count = 0,
+        trace_timer_tref = false,
+        trace_active = false
     }};
 handle_call({stop_trace, TrcPattern}, _From, #?STATE{ node = Node, cookie = Cookie } = State) ->
     true = goanna_db:delete_child_id_trace_pattern(Node, Cookie, TrcPattern),
-    ok = disable_tracing(Node, TrcPattern),
+    ok = remote_dbg_ctpl(Node, TrcPattern),
 	{reply, ok, State};
 handle_call(stop_all_trace_patterns, _From, #?STATE{node=Node,
                                                     cookie=Cookie,
                                                     trace_msg_count=_TMC,
                                                     connected=Connected,
                                                     type=Type} = State) ->
-    %% TODO: why is this crashing?
     %%?DEBUG("Stop trace - Total Message Count:~p~n", [TMC]),
     ok = disable_all_tracing(Connected, Node, Cookie),
     {ok,_} = clear_tracelist_restart_dbg(Node, Cookie, Type),
     ok = cancel_timer(State#?STATE.trace_timer_tref),
-    true = goanna_db:truncate_tracelist([]),
     {reply, ok, State#?STATE{
         trace_msg_count = 0,
         trace_timer_tref = false,
@@ -251,7 +249,7 @@ handle_info(_Info, State) ->
 terminate(_Reason, #?STATE{ node=Node, cookie=Cookie, connected=Connected } = _State) ->
     %%?DEBUG("[~p] terminate ~p in ~p", [?MODULE, Reason, goanna_node_sup:id(Node, Cookie)]),
     ok = disable_all_tracing(Connected, Node, Cookie),
-    true = goanna_db:delete_node(Node),
+    true = goanna_db:delete_node(Node, Cookie),
     ok.
 
 -spec code_change(term(),  #?STATE{}, term()) -> {ok,  #?STATE{}}.
@@ -430,7 +428,7 @@ enable_tracing(Node, _T=#trc_pattern{m=Module,f=Function,a=Arity,ms=Ms}) ->
 disable_all_tracing(Connected, _Node, _Cookie) when Connected=:=false ->
     {ok, undefined};
 disable_all_tracing(Connected, Node, _Cookie) when Connected=:=true ->
-    ok = disable_tracing(Node, []),
+    ok = remote_dbg_ctpl(Node, []),
     case rpc:call(Node, dbg, stop_clear, []) of
         ok ->
             ok;
@@ -451,7 +449,7 @@ clear_tracelist_restart_dbg(Node, Cookie, Type) ->
             {ok, undefined}
     end.
 %%------------------------------------------------------------------------
-disable_tracing(Node, []) ->
+remote_dbg_ctpl(Node, []) ->
     %%?DEBUG("[~p] [~p] Disable all tracing", [?MODULE, Node]),
     case rpc:call(Node, dbg, ctpl, []) of
         {badrpc, nodedown} ->
@@ -461,7 +459,7 @@ disable_tracing(Node, []) ->
                 % [?MODULE, Node, MatchDesc])
             ok
     end;
-disable_tracing(Node, _T=#trc_pattern{m=Module,f=undefined,a=undefined}) ->
+remote_dbg_ctpl(Node, _T=#trc_pattern{m=Module,f=undefined,a=undefined}) ->
     %%?DEBUG("[~p] [~p] Disable ~p tracing", [?MODULE, Node, T]),
     case rpc:call(Node, dbg, ctpl, [Module]) of
         {badrpc, nodedown} ->
@@ -471,7 +469,7 @@ disable_tracing(Node, _T=#trc_pattern{m=Module,f=undefined,a=undefined}) ->
                 %[?MODULE, Node, MatchDesc])
             ok
     end;
-disable_tracing(Node, _T=#trc_pattern{m=Module,f=Function,a=undefined}) ->
+remote_dbg_ctpl(Node, _T=#trc_pattern{m=Module,f=Function,a=undefined}) ->
     %%?DEBUG("[~p] [~p] Disable ~p tracing", [?MODULE, Node, T]),
     case rpc:call(Node, dbg, ctpl, [Module, Function]) of
         {badrpc, nodedown} ->
@@ -481,7 +479,7 @@ disable_tracing(Node, _T=#trc_pattern{m=Module,f=Function,a=undefined}) ->
                 %[?MODULE, Node, MatchDesc])
             ok
     end;
-disable_tracing(Node, _T=#trc_pattern{m=Module,f=Function,a=Arity}) ->
+remote_dbg_ctpl(Node, _T=#trc_pattern{m=Module,f=Function,a=Arity}) ->
     %%?DEBUG("[~p] [~p] Disable ~p tracing", [?MODULE, Node, T]),
     case rpc:call(Node, dbg, ctpl, [Module, Function, Arity]) of
         {badrpc, nodedown} ->
@@ -555,7 +553,6 @@ list_property_or_default(Field, Opts, Default) ->
         {Field, Value} -> Value
     end.
 
-%% TODO: Fix re-apply traces... i changed the tracelist
 -spec reapply_traces(#?STATE{}) -> #?STATE{}.
 reapply_traces(#?STATE{node = Node,
                        child_id=ChildId,

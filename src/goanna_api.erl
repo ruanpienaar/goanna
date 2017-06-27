@@ -34,17 +34,11 @@
 
 %%------------------------------------------------------------------------
 %% Goanna start-up helper only
-% -spec start() -> list().
-% start() -> [ ok = application:ensure_started(APP) || APP <- apps() ].
-% -spec stop() -> list().
-% stop() -> [ ok = application:stop(APP) || APP <- lists:reverse(apps()) ].
-% -spec apps() -> list().
-% apps() ->
-%     [asn1, crypto, public_key, ssl, compiler, inets, syntax_tools, sasl, kakapo, hawk, goanna].
 start() ->
-    application:ensure_all_started(goanna).
+    {ok, _} = application:ensure_all_started(goanna).
+
 stop() ->
-    application:stop(goanna).
+    ok = application:stop(goanna).
 %%------------------------------------------------------------------------
 
 %%------------------------------------------------------------------------
@@ -58,13 +52,13 @@ nodes() ->
         end, goanna_db:nodes()
     ).
 
--spec add_node(node(), atom(), erlang_distribution | file | tcpip_port) ->
-        {ok, pid()} | {error,{already_started,pid()}}.
+% erlang_distribution - deprecated
+% file                - Under construction.
+-spec add_node(node(), atom(), tcpip_port) ->
+        hawk_sup:start_child_return() | {error, badarg}.
 add_node(Node, Cookie, Type) when is_atom(Node),
                                   is_atom(Cookie),
-                                  (Type == erlang_distribution orelse
-                                   Type == file orelse
-                                   Type == tcpip_port) ->
+                                  Type == tcpip_port ->
     hawk:add_node(Node, Cookie,
         goanna_connect_callbacks(Node, Cookie, Type),
         goanna_disconnect_callbacks(Node)
@@ -189,6 +183,7 @@ trace_modules(Modules, Opts) ->
 stop_trace() ->
     cluster_foreach_call(stop_all_trace_patterns).
 
+%% TODO: add stop_trace_ms
 -spec stop_trace(atom()) -> ok.
 stop_trace(Module) ->
     cluster_foreach_call({stop_trace, #trc_pattern{m=Module}}).
@@ -253,7 +248,7 @@ recv_trace(_, _) ->
     ok.
 -spec list_active_traces() -> list().
 list_active_traces() ->
-    ets:tab2list(tracelist).
+    goanna_db:all(tracelist).
 
 -spec pull_all_traces() -> list().
 pull_all_traces() ->

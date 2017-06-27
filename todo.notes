@@ -1,0 +1,5 @@
+- enable auto trace of sys.config
+- disable only when a pattern has exceeded time or messages
+    - Goanna node is going to have to start a new instance for each trace pattern, so that you can selectivly stio a single trace pattern.
+- fix dialyzer and types
+- fix goanna_db trc_pattern VS tracelist...
