@@ -285,6 +285,10 @@ tcpip_port_trace_steps(Node, Cookie) ->
     [_Name, RelayHost] = string:tokens(atom_to_list(Node), "@"),
     case dbg_start(Node) of
         {ok, RemoteDbgPid} ->
+            case rpc:call(Node, erlang, whereis, [code_server]) of
+                Pid when is_pid(Pid) ->
+                   ok
+            end,
             %% Dbg pid is already linked...
             PortGenerator = rpc:call(Node, dbg, trace_port, [ip, RelayPort]),
             case rpc:call(Node, dbg, tracer, [port, PortGenerator]) of
@@ -296,7 +300,7 @@ tcpip_port_trace_steps(Node, Cookie) ->
             {ok,_MatchDesc} = dbg_p(Node),
             {ok, Fun} = handler_fun(Node, Cookie, tcpip_port),
             CLientPid = dbg:trace_client(ip, {RelayHost, RelayPort}, {Fun, ok}),
-            link(CLientPid),
+            true = link(CLientPid),
             %%?DEBUG("[~p] Node:~p MatchDesc:~p", [?MODULE, Node, MatchDesc]),
             {ok, RemoteDbgPid};
         Error ->
@@ -316,7 +320,7 @@ file_port_trace_steps(Node, Cookie) ->
             {ok,_MatchDesc} = dbg_p(Node),
             {ok, Fun} = handler_fun(Node, Cookie, file),
             CLientPid = dbg:trace_client(file, "/Users/rp/hd2/code/goanna/tracefile", {Fun, ok}),
-            link(CLientPid),
+            true = link(CLientPid),
             %%?DEBUG("[~p] Node:~p MatchDesc:~p", [?MODULE, Node, MatchDesc]),
             {ok, RemoteDbgPid};
         Error ->

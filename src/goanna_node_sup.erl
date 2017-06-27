@@ -55,7 +55,6 @@ start_child(Node, Cookie, Type) ->
 
 -spec delete_child(node()) -> ok | {error, no_such_node}.
 delete_child(Node) ->
-	%%?DEBUG("Deleting Child ~p", [Node]),
     case goanna_db:lookup([nodelist, Node]) of
         [{Node, Cookie,_}] ->
             ID=id(Node,Cookie),
