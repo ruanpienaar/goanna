@@ -231,13 +231,14 @@ handle_info({'EXIT', _From, done}, State) ->
 handle_info({'EXIT', From, Reason}, State) when From == self() ->
     %%?EMERGENCY("EXIT FROM - ~p - ~p", [From, Reason]),
     {stop, Reason, State};
-handle_info({'EXIT', _From, _Reason}, State) ->
+handle_info({'EXIT', From, Reason}, State) ->
     % [alert] <0.188.0> sent EXIT normal
     % Some of these normals, are the port from dbg.
     % when using type==tcpip_port, dbg creates 2 important items,
     % 1) the dbg loop pid 2) the port for the tcp traffic, this second
     % items creates the normal crash, when you stop-start dbg.
     %%?DEBUG("~p sent EXIT ~p", [From, Reason]),
+    io:format("~p ~p ~p", [?MODULE, ?LINE, {'EXIT', From, Reason}]),
     {noreply, State};
 %%------------------------------------------------------------------------
 %%---Shoudn't happen, but hey... let's see ...----------------------------
@@ -602,6 +603,7 @@ check_forward_mod(Mod) ->
     case erlang:function_exported(Mod, forward, 2) of
         true ->
         	%%?DEBUG("Forward module checked...", []);
+            ok = Mod:forward_init(ok),
             ok;
         false ->
             %%?EMERGENCY("[~p] Forwarding callback module ~p

@@ -10,6 +10,7 @@
 % TODO: how shall i do this?i've just exported forward/1
 % -behaviour("").
 -export([
+    forward_init/1,
 	forward/2,
 	trace/1,
 	do_trace/1,
@@ -562,6 +563,9 @@ cleanup(SlaveNodeName) ->
 
 stop_distrib() ->
     ok = net_kernel:stop().
+
+forward_init(_) ->
+    ok.
 
 forward(_Node, _TraceMessage) ->
     ok.

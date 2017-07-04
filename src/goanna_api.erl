@@ -239,11 +239,11 @@ recv_trace([trace, ChildId], Trace={trace_ts, _Pid, _Label, _Info, _ReportedTS})
 recv_trace([trace, ChildId], Trace={trace_ts, _Pid, _Label, _Info, _Extra, _ReportedTS}) ->
     call_node(ChildId, {trace_item, Trace});
 recv_trace([trace, _ChildId], Trace={seq_trace, _Label, _SeqTraceInfo}) ->
-    io:format("! Trace Message ~p not implemented yet !", [Trace]);
+    io:format("! Trace Message ~p not implemented yet !~n", [Trace]);
 recv_trace([trace, _ChildId], Trace={seq_trace, _Label, _SeqTraceInfo, _ReportedTS}) ->
-    io:format("! Trace Message ~p not implemented yet !", [Trace]);
+    io:format("! Trace Message ~p not implemented yet !~n", [Trace]);
 recv_trace([trace, _ChildId], _Trace={drop, NumberOfDroppedItems}) ->
-    io:format("! Remote DBG dropped ~p message. Goanna could not consume fast enough!", [NumberOfDroppedItems]);
+    io:format("! Remote DBG dropped ~p message. Goanna could not consume fast enough!~n", [NumberOfDroppedItems]);
 recv_trace(_, _) ->
     ok.
 -spec list_active_traces() -> list().

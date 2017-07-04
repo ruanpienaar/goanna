@@ -3,8 +3,7 @@
   {description, ""},
   {vsn, "1"},
   {registered, []},
-  {applications, [
-                  kernel,
+  {applications, [kernel,
                   stdlib,
                   asn1,
                   crypto,
@@ -13,8 +12,6 @@
                   compiler,
                   inets,
                   syntax_tools,
-                  % sasl,
-                  % kakapo,
                   hawk
                  ]},
   {mod, { goanna_app, []}},

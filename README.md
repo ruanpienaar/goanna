@@ -74,32 +74,41 @@ Tracing Example:
 
 ```
 
+## Goanna Forward Callback Mod
+#### -behaviour(goanna_forward_callback_mod). )
+
+You can write your own trace entry handler callback module. Just follow the goanna_forward_callback_mod
+behaviour convention, and do whatever you like with trace entries.
+There are examples in src/, goanna_forward_shell,
+goanna_forward_os_io, goanna_forward_file. Choose your module, and update
+the sys.config in data_retrival_method, with {push, X Miliseconds, ForwardModule}.
+
+## Sys.config options
 Goanna features a host of different config options to be set as defaults or can be adjust at runtime.
 One of config settings deals with limiting traces by either a timed limit or trace message count limit or whichever comes first.
 
 Application env System configuration options:
 
-1. data_retrival_method ( push or pull )  
- {push, WaitTime :: non_neg_integer(), Module :: atom()}
+1. data_retrival_method ( push or pull )
+ {push, WaitTime :: non_neg_integer(), GoannaForwardCallbackModule :: atom()}
  pull
-2. push_data_batch_size ( How much entries to push - applies to data_retrival_method=push )  
+2. push_data_batch_size ( How much entries to push - applies to data_retrival_method=push )
  non_neg_integer()
-3. nodes ( All your nodes )  
+3. nodes ( All your nodes )
  [{node, Node :: atom()},
-  {cookie, Cookie :: atom()}, 
+  {cookie, Cookie :: atom()},
   {type, Type :: tcpip_port | file | erlang_distribution}]
-4. traces ( All the active trace patterns to apply at startup  
- [{module,mod :: atom()}],  
- [{module,mod :: atom()}, {function,func :: atom()}],  
- [{module,mod :: atom()}, {function,func :: atom()}, {arity, Arity :: non_neg_integer()}],  
-5. default_trace_options ( Options regarding running traces, like time and trace message total count )  
+4. traces ( All the active trace patterns to apply at startup
+ [{module,mod :: atom()}],
+ [{module,mod :: atom()}, {function,func :: atom()}],
+ [{module,mod :: atom()}, {function,func :: atom()}, {arity, Arity :: non_neg_integer()}],
+5. default_trace_options ( Options regarding running traces, like time and trace message total count )
  {time, TimeMs :: non_neg_integer()}
  {messages, Messages :: non_neg_integer()}
-6. dbg_p_flags ( [dbg:p/2's](http://erlang.org/doc/man/dbg.html#p-2) Flag options **still experimental** )  
+6. dbg_p_flags ( [dbg:p/2's](http://erlang.org/doc/man/dbg.html#p-2) Flag options **still experimental** )
  call
 
 #WIP Roadmap
 1. custom trace_port client
-2. be able to work with short/long names in the erlang distribution
-3. Able to compile gonna on OTP 18 < ( timestamp code )
-4. file trace needs to be implemented
+2. file trace needs to be implemented ( trace to binary file format, faster )
+3. able to have multiple forward callback modules.

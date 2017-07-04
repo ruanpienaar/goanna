@@ -57,8 +57,8 @@
 
 -type goanna_trace_tuple() :: {calendar:timestamp(), erlang_trace_data()}.
 
+-callback forward_init(X :: any()) -> ok.
 -callback forward(Node :: node(), Item :: goanna_trace_tuple()) -> ok.
-
 
 -export_type([goanna_trace_tuple/0]).
 -export_type([erlang_trace_data/0]).

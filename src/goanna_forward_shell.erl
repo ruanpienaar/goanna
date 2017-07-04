@@ -1,14 +1,20 @@
--module(goanna_shell_printer).
+-module(goanna_forward_shell).
 
 -behaviour(goanna_forward_callback_mod).
-
--export([forward/2]).
+-export([
+    forward_init/1,
+    forward/2
+]).
 
 -export([trace_abbreviations/0,
          format_trace_item/2
 ]).
 
 -include_lib("goanna.hrl").
+
+-spec forward_init(X :: any()) -> ok.
+forward_init(_X) ->
+    ok.
 
 -spec forward(Tbl :: term(), goanna_forward_callback_mod:goanna_trace_tuple()) -> ok.
 %% Warning is used for the nice Yellow color, from the default lager config.
