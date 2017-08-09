@@ -416,28 +416,17 @@ handler_fun(Node, Cookie, erlang_distribution) ->
 enable_tracing(_Node, false) ->
     {error, nothing_to_trace};
 enable_tracing(Node, _T=#trc_pattern{m=Module,f=undefined,a=undefined,ms=undefined}) ->
-    %%?DEBUG("[~p] [~p] enable_tracing:~p~p~n", [?MODULE, {Module}, Node, T]),
     {ok, _MatchDesc} = rpc:call(Node, dbg, tpl, [Module, cx]),
-    %%?DEBUG("[~p] [~p] dbg:tpl MatchDesc ~p",
-        % [?MODULE, Node, MatchDesc]);
+    {ok, _MatchDesc2} = rpc:call(Node, dbg, ctpl, [Module, module_info]),
     ok;
 enable_tracing(Node, _T=#trc_pattern{m=Module,f=Function,a=undefined,ms=undefined}) ->
-    %%?DEBUG("[~p] [~p] enable_tracing:~p~p~n", [?MODULE, {Module,Function}, Node, T]),
     {ok, _MatchDesc} = rpc:call(Node, dbg, tpl, [Module, Function, cx]),
-    %%?DEBUG("[~p] [~p] dbg:tpl MatchDesc ~p",
-        % [?MODULE, Node, MatchDesc]);
     ok;
 enable_tracing(Node, _T=#trc_pattern{m=Module,f=Function,a=Arity,ms=undefined}) ->
-    %%?DEBUG("[~p] [~p] enable_tracing:~p~p~n", [?MODULE, {Module,Function,Arity}, Node, T]),
     {ok, _MatchDesc} = rpc:call(Node, dbg, tpl,[Module, Function, Arity, cx]),
-    %%?DEBUG("[~p] [~p] dbg:tpl MatchDesc ~p",
-        % [?MODULE, Node, MatchDesc]);
     ok;
 enable_tracing(Node, _T=#trc_pattern{m=Module,f=Function,a=Arity,ms=Ms}) ->
-    %%?DEBUG("[~p] [~p] enable_tracing:~p~p~n", [?MODULE, {Module,Function,Arity,Ms}, Node, T]),
     {ok, _MatchDesc} = rpc:call(Node, dbg, tpl,[Module, Function, Arity, Ms]),
-    %%?DEBUG("[~p] [~p] dbg:tpl MatchDesc ~p",
-        % [?MODULE, Node, MatchDesc]).
     ok.
 
 %%------------------------------------------------------------------------
