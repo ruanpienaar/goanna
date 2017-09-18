@@ -2,7 +2,6 @@
 *.plt
 *.DS_Store
 *.log
-apps/*/logs
 erl_crash.dump
 Mnesia*
 log/
@@ -12,3 +11,4 @@ _build
 rebar.lock
 rebar3
 sys.config
+*.xml
