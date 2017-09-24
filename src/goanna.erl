@@ -38,7 +38,7 @@ main([NameType]) when NameType =:= "-s";
     	{dbg_p_flags, DPF} ->
     		application:set_env(goanna, dbg_p_flags, DPF)
     end,
-    true = lists:all(fun(ok) -> true; (_) -> false end, goanna_api:start()),
+    {ok,_} = goanna_api:start(),
     case check_lookup_value(nodes, GoannaConfig) of
         [] ->
             io:format("No nodes to start in ./sys.config", []),
@@ -51,41 +51,11 @@ main([NameType]) when NameType =:= "-s";
                     timer:sleep(100),
                     erlang:halt(0);
                 Traces ->
-                    %%?DEBUG("Startup nodes!"),
-                    % timer:sleep(1000),
-                    % ok = startup_nodes(Nodes),
-                    %%?DEBUG("Waiting for nodes......~n", []),
-                    % wait_for_nodes(Nodes, 500),
-                    %%?DEBUG("Applying Traces ~p~n", [Traces]),
                     timer:sleep(100),
                     traces(Traces)
             end
     end,
     infinite_loop().
-
-%wait_for_nodes(_Nodes, 0) ->
-%	io:format("Wait was too long, nodes haven't arrived", []),
-%	timer:sleep(100),
-%	erlang:halt(0);
-%wait_for_nodes(Nodes, Count) ->
-%	GN = goanna_api:nodes(),
-%	%%%%?DEBUG("Nodes known to goanna: ~p~n", [Nodes]),
-%	case length(GN)==length(Nodes) of
-%		true ->
-%			Pids = [ whereis(N) || [{node,N},{cookie,_C},{_,_}] <- Nodes],
-%			case lists:all(fun(undefined) -> false; (P) when is_pid(P) -> true end, Pids) of
-%				true ->
-%					%%?INFO("Nodes are alive now..~p~n", [Pids]),
-%					% timer:sleep(5000);
-%                    ok;
-%				false ->
-%					wait_for_nodes(Nodes, Count-1)
-%			end;
-%		false ->
-%			%%?DEBUG("Waiting for nodes....~n", []),
-%			timer:sleep(10),
-%			wait_for_nodes(Nodes, Count-1)
-%	end.
 
 check_lookup_value(Key, Proplist) ->
     case lists:keyfind(Key, 1, Proplist) of

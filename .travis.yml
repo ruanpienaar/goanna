@@ -28,3 +28,4 @@ env:
   global:
     - TIMEOUT=100
 
+dist: trusty

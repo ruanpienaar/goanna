@@ -2,7 +2,6 @@
 *.plt
 *.DS_Store
 *.log
-apps/*/logs
 erl_crash.dump
 Mnesia*
 log/
@@ -15,3 +14,4 @@ sys.config
 .tags
 .tags_sorted_by_file
 TEST-*
+*.xml
