@@ -118,7 +118,7 @@ loop(#{ trace_msg_count := TMC,
     % io:format("<<<< TMC >= TMM >>>>>~n"),
     dbg_trace_steps(stop_all_traces_return_state(State));
 loop(#{
-        data_retrival_method := DRM,
+        % data_retrival_method := DRM,
         node := Node,
         cookie := Cookie,
         child_id := ChildId,

@@ -1,5 +1,9 @@
 -module(read_coverdata).
--compile(export_all).
+% -compile(export_all).
+-export([
+    d/0,
+    dec_cov_data/1
+]).
 
 d() ->
     dec_cov_data("_build/test/cover/eunit.coverdata").
