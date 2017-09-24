@@ -1,351 +1,367 @@
 -module(goanna_node).
-
--behaviour(gen_server).
-
 -export([
-    start_link/1,
-    init/1,
-    handle_call/3,
-    handle_cast/2,
-    handle_info/2,
-    terminate/2,
-    code_change/3
+    start_link/4
 ]).
 
--include_lib("goanna.hrl").
--define(STATE, ?GOANNA_STATE).
-%%------------------------------------------------------------------------
--spec start_link({node(), atom(), erlang_distribution | file | tcpip_port}) -> {ok, pid()}.
-start_link({Node, Cookie, Type}) ->
-    ChildId = goanna_node_sup:id(Node, Cookie),
-    gen_server:start_link({local, ChildId}, ?MODULE, {Node,Cookie,Type,ChildId}, []).
+%% -----------------------------------------------------------------------------------
+%% @doc
+%%
+%%  1) previous traces would be started only
+%%  when the entire application restarts. This goanna_node should not
+%%  crash, so we do not need to "restart" the traces when it starts again.
+%%
+%%  2) the remote code_server has to be up after hawk(net_kernel)
+%%  was able to connect, todo: maybe make this configurable.
+%%
+%%  3) Trace total message count and/or trace time will be applied to all trace patterns.
+%%     Updating the default trace options will trigger the re-trace with the new options, if tracing.
+%%     Also adding new traces will restart the trace timer and trace count.
+%%
+%% @end
+%% -----------------------------------------------------------------------------------
 
-%%init({Node, Cookie, Type, ChildId}, sync) ->
-    %% First Connect, then allow initialisation to continue...
-    %% follow the normal connect attempt route...
-    %% ok.
--spec init({node(), atom(), erlang_distribution | file | tcpip_port, atom()}) -> {ok, #?STATE{}}.
-init({Node, Cookie, Type, ChildId}) ->
-    false = process_flag(trap_exit, true),
-    State = app_env_to_state(#?STATE{}),
-    {ok, _} = trace_steps(Node, Cookie, Type),
-    {ok, reapply_traces(State#?STATE{
-                    child_id=ChildId,
-                    node=Node,
-                    cookie=Cookie,
-                    type=Type,
-                    connected=true
-                })
+start_link(Node, Cookie, Type, ChildId) when is_atom(Node) ->
+    State = env_state(initial_state(Node, Cookie, Type, ChildId)),
+    {ok, proc_lib:spawn_link(fun() ->
+        false = process_flag(trap_exit, true),
+        goanna_node_mon:monitor(self()),
+        true = erlang:register(goanna_node_sup:id(Node, Cookie), self()),
+        {ok,_} = goanna_db:init_node([Node, Cookie, Type, ChildId]),
+        dbg_trace_steps(State)
+    end)}.
+
+initial_state(Node, Cookie, Type, ChildId) ->
+    #{ node => Node,
+       cookie => Cookie,
+       type => Type,
+       child_id => ChildId,
+       trace_msg_count => 0,
+       trace_timer_tref => undefined,
+       trace_client_pid => undefined,
+       tracing => false,
+       push_timer_tref => undefined
     }.
-%%------------------------------------------------------------------------
-%%---For updating the internal state of this gs---------------------------
--spec app_env_to_state( #?STATE{} ) -> #?STATE{}.
-app_env_to_state(State) ->
-    %% TODO: add some app env checks here...
-    DefaultTraceOpts = application:get_env(goanna, default_trace_options, []),
+
+env_state(#{node := Node} = State) ->
+    DefaultTraceOpts =
+        application:get_env(goanna, default_trace_options, []),
+    MaxTraceTime =
+        goanna_common:prop_value(time, DefaultTraceOpts, false),
+    MaxMessages =
+        goanna_common:prop_value(messages, DefaultTraceOpts, false),
     FMethod =
         case application:get_env(goanna, data_retrival_method, pull) of
-            F={push, _, M} when M =/= undefined ->
-                ok = check_forward_mod(M),
-                F;
             pull ->
-                pull
+                pull;
+            F = {push, _Interval, Mod, _Amount} ->
+                ok = check_forward_mod(Node, Mod),
+                F
         end,
-    TraceTime = list_property_or_default(time, DefaultTraceOpts, false),
-    MessageCount = list_property_or_default(messages, DefaultTraceOpts, false),
-    MaxConnAttempts = application:get_env(goanna, max_reconnecion_attempts, undefined),
-    State#?STATE{trace_msg_total=MessageCount,
-                 trace_time=TraceTime,
-                 data_retrival_method=FMethod,
-                 max_reconnecion_attempts=MaxConnAttempts,
-                 push_pending = handle_data_retrival_method(FMethod)
+    State#{
+        trace_max_msg => MaxMessages,
+        trace_max_time => MaxTraceTime,
+        data_retrival_method => FMethod
     }.
 
--spec est_rem_conn(#?STATE{}) -> {ok, #?STATE{}}.
-est_rem_conn(#?STATE{node=Node,
-                     cookie=Cookie,
-                     data_retrival_method=FMethod } = State) ->
-    case do_rem_conn(Node, Cookie) of
+-spec check_forward_mod(atom(), atom()) -> ok.
+check_forward_mod(Node, Mod) ->
+    c:l(Mod), % Make sure the default is loaded...ugly...
+    % TODO: build a behaviour checker...
+    case erlang:function_exported(Mod, forward, 2) of
         true ->
-            ok = do_monitor_node(Node, State#?STATE.connect_attempt_ref),
-            {ok, _} = trace_steps(Node, Cookie, State#?STATE.type),
-            {ok, reapply_traces(State#?STATE{
-                    connected=true,
-                    connect_attempt_ref = undefined,
-                    connect_attempts = 0,
-                    push_pending = handle_data_retrival_method(FMethod)
-                })
-            };
+            Mod:forward_init(ok);
         false ->
-            {ok, reconnect(State)}
+            io:format("[~p] Forwarding callback module ~p
+                % missing required behaviour functions...Removing Node ~p...",
+                [?MODULE, Mod, Node]),
+            goanna_api:remove_node(Node)
     end.
 
-do_rem_conn(Node, Cookie) ->
-    ((erlang:set_cookie(Node,Cookie)) andalso (net_kernel:connect_node(Node))).
+%% -----------------------------------------------------------------------------------
+%% Running
+% ! Make sure that the tracelist is cleared before falling into here..
+dbg_trace_steps(#{
+        node := Node,
+        cookie := Cookie,
+        child_id := ChildId,
+        type := Type,
+        data_retrival_method := FMethod,
+        trace_client_pid := PrevTraceCLientPid,
+        push_timer_tref := PTT } = State) ->
+    {ok, RemoteDbgPid, TraceCLientPid} = trace_steps(Node, Cookie, Type),
+    %io:format("trace steps are done........~n"),
+    State2 = State#{
+        remote_dbg_pid => RemoteDbgPid,
+        trace_client_pid => TraceCLientPid,
+        previous_trace_client_pid => PrevTraceCLientPid
+    },
+    %% If there are tracelist items for this ChildId, then start the tracing with them...
+    %% Usually left over from startup, when the node disconnected, and reconnected again...
+    State3 =
+        case goanna_db:lookup([tracelist, ChildId]) of
+            [] ->
+                State2;
+            TrcPatterns ->
+                ok = lists:foreach(fun(TrcPattern) ->
+                    {ok, _} = enable_tracing(Node, TrcPattern)
+                end, TrcPatterns),
+                State2#{ tracing => true }
 
-do_monitor_node(Node, ConnectAttemptTref) ->
-    true = erlang:monitor_node(Node, true),
-    %%?NOTICE(" [~p] ~p !!! startup complete !!! \n", [?MODULE, Node]),
-    case ConnectAttemptTref of
-        undefined ->
-            ok;
-        TRef ->
-	    	case timer:cancel(TRef) of
-	        %% Most likely already closed/timed-out...
-	        	{error, badarg} ->
-	            	ok;
-	            {ok, cancel} ->
-	            	ok
-	        end
+        end,
+    loop(State3#{
+        push_timer_tref => handle_data_retrival_method(PTT, FMethod)
+    }).
+
+loop(#{ trace_msg_count := TMC,
+        trace_max_msg := TMM
+        } = State) when TMC >= TMM ->
+    % io:format("<<<< TMC >= TMM >>>>>~n"),
+    dbg_trace_steps(stop_all_traces_return_state(State));
+loop(#{
+        data_retrival_method := DRM,
+        node := Node,
+        cookie := Cookie,
+        child_id := ChildId,
+        trace_client_pid := TraceCLientPid,
+        previous_trace_client_pid := PrevTraceCLientPid,
+        trace_msg_count := TMC,
+        trace_max_time := TMT,
+        tracing := Tracing,
+        trace_timer_tref := TT,
+        push_timer_tref := PTT
+        } = State) ->
+    % io:format("loop/1 got TraceCLientPid as ~p~n", [TraceCLientPid]),
+    receive
+        %% NoReply casts
+        {trace_item, _Trace} when not Tracing ->
+            % io:format("loop receive -> ~s~n", ["{trace_item, Trace} when not Tracing ->"]),
+            % io:format("dropping trace...~p~n", [Trace]),
+            loop(State);
+        {push_data, Mod, Amount} ->
+            io:format("loop receive -> ~s~n", ["{push_data, Mod, Amount} ->"]),
+            ok = goanna_db:push(ChildId, Mod, Amount),
+            loop(State);
+        {trace_item, Trace} when Tracing ->
+            % io:format("loop receive -> ~s~n", ["{trace_item, Trace} when Tracing ->"]),
+            %% Check trace counts, and timer!!!
+            true = goanna_db:store([trace, ChildId], Trace),
+            loop(State#{ trace_msg_count => TMC+1 });
+        {stop_all_trace_patterns} when not Tracing ->
+            io:format("loop receive -> ~s~n", ["{stop_all_trace_patterns} when not Tracing ->"]),
+            loop(State);
+        {stop_all_trace_patterns} when Tracing ->
+            io:format("loop receive -> ~s~n", ["{stop_all_trace_patterns} when Tracing ->"]),
+            NewState = stop_all_traces_return_state(State),
+            dbg_trace_steps(NewState);
+
+        %% Reply calls
+        {{update_default_trace_options}, Reply} ->
+            io:format("loop receive -> ~s~n", ["{{update_defaullt_trace_options}, Reply} ->"]),
+            %% Leave the existing traces, user has to manually stop them,
+            %% all of the new traces will have the newly set default value.
+            NewState = env_state(State),
+            Reply ! ok,
+            loop(NewState);
+        {{update_data_retrival_method}, Reply} ->
+            io:format("loop receive -> ~s~n", ["{{update_data_rretrival_method}, Reply} ->"]),
+            case PTT of
+                % busy using "pull", so no push timer to cancel,
+                undefined ->
+                    ok;
+                % Busy using "push" so cancel the timer, and
+                PTT ->
+                    cancel_timer(PTT)
+            end,
+            NewState = env_state(State),
+            #{ data_retrival_method := FMethod } = NewState,
+            NewState2 = NewState#{ push_timer_tref => handle_data_retrival_method(PTT, FMethod) },
+            Reply ! ok,
+            loop(NewState2);
+        {{trace, TrcPatterns}, Reply} ->
+            cancel_timer(TT),
+            io:format("loop receive -> ~s~n", ["{{trace, TrcPatterns}, Reply} ->"]),
+            % Start tracing TrcPatterns
+            ok = trace(ChildId, TrcPatterns, Node),
+            Reply ! ok,
+            loop(State#{
+                tracing => true,
+                trace_msg_count => 0,
+                trace_timer_tref => timer:send_after(TMT, {stop_all_trace_patterns})
+            });
+        {{stop_trace, _TrcPattern}, Reply} when not Tracing ->
+            io:format("loop receive -> ~s~n", ["{{stop_trace, TrcPattern}, Reply} when not Tracing ->"]),
+            Reply ! ok,
+            loop(State);
+        {{stop_trace, TrcPattern}, Reply} when Tracing ->
+            cancel_timer(TT),
+            io:format("loop receive -> ~s~n", ["{{stop_trace, TrcPattern}, Reply} when Tracing ->"]),
+            true = goanna_db:delete_child_id_trace_pattern(Node, Cookie, TrcPattern),
+            remote_dbg_ctpl(Node, TrcPattern),
+            Reply ! ok,
+            loop(State);
+        {{stop_all_trace_patterns}, Reply} when not Tracing ->
+            io:format("loop receive -> ~s~n", ["{{stop_all_trace_patterns}, Reply} when not Tracing ->"]),
+            Reply ! ok,
+            loop(State);
+        {{stop_all_trace_patterns}, Reply} when Tracing ->
+            cancel_timer(TT),
+            io:format("loop receive -> ~s~n", ["{{stop_all_trace_patterns}, Reply} when Tracing ->"]),
+            NewState = stop_all_traces_return_state(State),
+            Reply ! ok,
+            dbg_trace_steps(NewState);
+        {'EXIT', TraceCLientPid, normal} ->
+            io:format("loop receive -> ~s~n", ["{'EXIT', TraceCLientPid, normal} ->"]),
+            io:format("Received exit from TraceCLientPid ~n"),
+            loop(State);
+        {'EXIT', PrevTraceCLientPid, normal} ->
+            io:format("loop receive -> ~s~n", ["{'EXIT', PrevTraceCLientPid, normal} ->"]),
+            io:format("Received exit from PrevTraceCLientPid ~n"),
+            loop(State);
+        {'EXIT', FromPid, shutdown} ->
+            io:format("loop receive -> ~s~n", ["{'EXIT', FromPid, shutdown} ->"]),
+            case whereis(goanna_node_sup) of
+                FromPid ->
+                    io:format("goanna node sup asked to shutdown ~n"),
+                    terminate(Node, Cookie, TraceCLientPid);
+                _ ->
+                    io:format("received EXIT shutdown from ~p ~p ~n", [FromPid, erlang:process_info(FromPid)]),
+                    loop(State)
+            end;
+        {system, From, _Msg = get_state} ->
+            gen:reply(From, State),
+            loop(State);
+        {system, From, _Msg = get_status} ->
+            SysState = running,
+            Parent = whereis(goanna_node_sup),
+            Mod = ?MODULE,
+            Name = ChildId,
+            % FromPid ! {status, self(), {module, ?MODULE}, [PDict, SysState, Parent, _Debug=false, _Misc=false]},
+            gen:reply(From, get_status(SysState, Parent, Mod, _Debug=false, _Misc=[Name, State, Mod, undefined, undefined])),
+            loop(State);
+        Any ->
+            io:format("UNEXPECTED ~p ~p loop recv : ~p~n", [self(), erlang:process_info(self(), registered_name), Any]),
+            loop(State)
     end.
 
-trace(_ChildId, [], _, _) ->
-    ok;
-trace(ChildId, [H|T], UpdatedOpts2, Node) ->
-    %% TODO: how to report, already traced...
-    _ = trace(ChildId, H, UpdatedOpts2, Node),
-    trace(ChildId, T, UpdatedOpts2, Node);
-trace(ChildId, TrcPattern, UpdatedOpts2, Node) ->
-    case goanna_db:lookup([tracelist, ChildId, TrcPattern]) of
-        [] ->
-            true = goanna_db:store([tracelist, ChildId, TrcPattern], UpdatedOpts2),
-            enable_tracing(Node, TrcPattern);
-        [{{ChildId, TrcPattern}, _Opts}] ->
-            {error, {TrcPattern, already_tracing}}
-    end.
+stop_all_traces_return_state(#{ node := Node, cookie := Cookie, type := Type, trace_timer_tref := TT} = State) ->
+    ok = disable_all_tracing(Node),
+    clear_tracelist(Node, Cookie, Type),
+    ok = cancel_timer(TT),
+    State#{ trace_msg_count => 0,
+            trace_timer_tref => undefined,
+            tracing => false
+    }.
 
-%%------------------------------------------------------------------------
-%%--- Updating the internal state, based on app_env-----------------------
--spec handle_call(term(), reference(), #?STATE{}) -> {reply, ok | stop_tracing | {error, unknown_call},  #?STATE{}}.
-handle_call({update_state}, _From, State) ->
-    {reply, ok, app_env_to_state(State)};
-%%------------------------------------------------------------------------
-%%---Tracing--------------------------------------------------------------
-handle_call({trace, Opts, TrcPatterns}, _From, #?STATE{child_id=ChildId,
-                                                      node=Node,
-                                                      trace_msg_total=TraceMsgCount,
-                                                      trace_time=TraceTime,
-                                                      trace_timer_tref=TraceTimerTRef } = State) ->
-    NewTraceMsgCount = list_property_or_default(messages, Opts, TraceMsgCount),
-    NewTraceTime = list_property_or_default(time, Opts, TraceTime),
-    UpdatedOpts = lists:keystore(messages, 1, Opts, {messages, NewTraceMsgCount}),
-    UpdatedOpts2 = lists:keystore(time, 1, UpdatedOpts, {time, NewTraceTime}),
+-spec handle_data_retrival_method(reference(), {push, non_neg_integer(), atom(), non_neg_integer()} | pull)
+        -> reference() | undefined.
+handle_data_retrival_method(TRef, {push, Interval, Mod, Amount}) ->
+    cancel_timer(TRef),
+    io:format("handle_data_retrival_method({push, Interval, Mod, Amount}) ->~n", []),
+    % erlang:send_after(Interval, self(), {push_data, Mod, Amount});
+    {ok, Ref} = timer:send_interval(Interval, {push_data, Mod, Amount}),
+    Ref;
+handle_data_retrival_method(TRef, pull) ->
+    cancel_timer(TRef),
+    io:format("handle_data_retrival_method(pull) ->~n", []),
+    undefined.
 
-    %% TODO: Handle already traced...
-    ok = trace(ChildId, TrcPatterns, UpdatedOpts2, Node),
-    {ok,_} = dbg_p(Node),
-    {reply, ok,
-        State#?STATE{
-            trace_msg_total=NewTraceMsgCount,
-            trace_time=NewTraceTime,
-            trace_timer_tref = new_trace_timer(ChildId, NewTraceTime, TraceTimerTRef),
-            trace_active = true
-        }
-    };
-%%------------------------------------------------------------------------
-%%---Deal with message counts---------------------------------------------
-
-handle_call({trace_item, _}, _From, #?STATE{ trace_active=false } = State) ->
-    {reply, ok, State};
-handle_call({trace_item, Trace}, _From, #?STATE{ trace_msg_count=TMC,
-                                                 trace_msg_total=false,
-                                                 trace_active=true } = State) ->
-    %% Either use the external timestamp, as the db key, or create your own one...
-    %% trace VS trace_ts
-    % case Trace of
-    %     trace -> ok;
-    %     trace_ts -> ok
-    % end,
-    true=goanna_db:store([trace, State#?STATE.child_id], Trace),
-    {reply, ok, State#?STATE{trace_msg_count = TMC + 1}};
-handle_call({trace_item, Trace}, _From, #?STATE{ trace_msg_count=TMC,
-                                                 trace_msg_total=TMT,
-                                                 trace_active=true } = State) when TMC<TMT ->
-    true=goanna_db:store([trace, State#?STATE.child_id], Trace),
-    {reply, ok, State#?STATE{trace_msg_count = TMC + 1}};
-handle_call({trace_item, Trace}, _From, #?STATE{ node=Node,
-                                                 cookie=Cookie,
-                                                 trace_msg_count=TMC,
-                                                 trace_msg_total=TMT,
-                                                 trace_active=true,
-                                                 connected=Connected,
-                                                 type=Type } = State) when TMC >= TMT ->
-    %%?DEBUG("[~p] [~p] Trace message count limit reached...", [?MODULE, Node]),
-    true=goanna_db:store([trace, State#?STATE.child_id], Trace),
-    ok = disable_all_tracing(Connected, Node, Cookie),
-    {ok,_} = clear_tracelist_restart_dbg(Node, Cookie, Type),
-    ok = cancel_timer(State#?STATE.trace_timer_tref),
-    {reply, stop_tracing, State#?STATE{
-        trace_msg_count = 0,
-        trace_timer_tref = false,
-        trace_active = false
-    }};
-handle_call({stop_trace, TrcPattern}, _From, #?STATE{ node = Node, cookie = Cookie } = State) ->
-    true = goanna_db:delete_child_id_trace_pattern(Node, Cookie, TrcPattern),
-    ok = remote_dbg_ctpl(Node, TrcPattern),
-	{reply, ok, State};
-handle_call(stop_all_trace_patterns, _From, #?STATE{node=Node,
-                                                    cookie=Cookie,
-                                                    trace_msg_count=_TMC,
-                                                    connected=Connected,
-                                                    type=Type} = State) ->
-    %%?DEBUG("Stop trace - Total Message Count:~p~n", [TMC]),
-    ok = disable_all_tracing(Connected, Node, Cookie),
-    {ok,_} = clear_tracelist_restart_dbg(Node, Cookie, Type),
-    ok = cancel_timer(State#?STATE.trace_timer_tref),
-    {reply, ok, State#?STATE{
-        trace_msg_count = 0,
-        trace_timer_tref = false,
-        trace_active = false
-    }};
-handle_call({clear_db_traces}, _From, #?STATE{child_id=ChildId} = State) ->
-    true = goanna_db:truncate_traces(ChildId),
-    {reply, ok, State};
-handle_call(Request, _From, State) ->
-    %%?EMERGENCY("[~p] Unknown handle_call ~p~n~p", [?MODULE, Request, State]),
-    {reply, {error, unknown_call, Request}, State}.
-
--spec handle_cast(term(), #?STATE{}) -> {noreply, #?STATE{}}.
-handle_cast(_Msg, State) ->
-    %%?EMERGENCY("[~p] Unknown handle_cast ~p~n~p", [?MODULE, Msg, State]),
-    {noreply, State}.
-%%------------------------------------------------------------------------
-%% Connectivity-----------------------------------------------------------
--spec handle_info(term(),  #?STATE{}) -> {noreply,  #?STATE{}}.
-handle_info({nodedown, Node}, #?STATE{node=Node} = State) ->
-    %%?DEBUG("[~p] Node:~p down...", [?MODULE, Node]),
-    {noreply, reconnect(State)};
-handle_info(reconnect, #?STATE{node=_Node} = State) ->
-    %%?DEBUG("[~p] attempting to reconnect to ~p...", [?MODULE, Node]),
-    {ok, NewState} = est_rem_conn(State),
-    {noreply, NewState};
-%%------------------------------------------------------------------------
-%%---Poll results, and forward upwards------------------------------------
-handle_info({push_data, Mod}, #?STATE{node=Node, child_id=Tbl} = State) ->
-    push_data_loop(Mod, Tbl, Node),
-    {noreply, State#?STATE{push_pending = handle_data_retrival_method(State#?STATE.data_retrival_method)}};
-%%------------------------------------------------------------------------
-%% Handle Exists
-handle_info({'EXIT', _From, done}, State) ->
-    {noreply, State};
-handle_info({'EXIT', From, Reason}, State) when From == self() ->
-    %%?EMERGENCY("EXIT FROM - ~p - ~p", [From, Reason]),
-    {stop, Reason, State};
-handle_info({'EXIT', From, Reason}, State) ->
-    % [alert] <0.188.0> sent EXIT normal
-    % Some of these normals, are the port from dbg.
-    % when using type==tcpip_port, dbg creates 2 important items,
-    % 1) the dbg loop pid 2) the port for the tcp traffic, this second
-    % items creates the normal crash, when you stop-start dbg.
-    %%?DEBUG("~p sent EXIT ~p", [From, Reason]),
-    io:format("~p ~p ~p", [?MODULE, ?LINE, {'EXIT', From, Reason}]),
-    {noreply, State};
-%%------------------------------------------------------------------------
-%%---Shoudn't happen, but hey... let's see ...----------------------------
-handle_info(_Info, State) ->
-    %%?EMERGENCY("[~p] Unknown handle_info ~p~n~p", [?MODULE, Info, State]),
-    {noreply, State}.
-
--spec terminate(term(),  #?STATE{}) -> ok.
-terminate(_Reason, #?STATE{ node=Node, cookie=Cookie, connected=Connected } = _State) ->
-    %%?DEBUG("[~p] terminate ~p in ~p", [?MODULE, Reason, goanna_node_sup:id(Node, Cookie)]),
-    ok = disable_all_tracing(Connected, Node, Cookie),
+terminate(Node, Cookie, TraceCLientPid) ->
+    % io:format("goanna_node terminate ... ~n"),
+    ok = disable_all_tracing(Node),
     true = goanna_db:delete_node(Node, Cookie),
+    true = erlang:unregister(goanna_node_sup:id(Node, Cookie)),
+    true = unlink(TraceCLientPid),
     ok.
 
--spec code_change(term(),  #?STATE{}, term()) -> {ok,  #?STATE{}}.
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
-%%------------------------------------------------------------------------
-%% TODO: maybe delete this child, when it cannot establish a connection
-%% after X amount of retries...
--spec reconnect(#?STATE{}) -> #?STATE{}.
-reconnect(#?STATE{ connect_attempts = Attempts, max_reconnecion_attempts = Max } = State) when Attempts >= Max ->
-    %%?INFO("Too many connection attempts, removing node ~p", [State#?STATE.node]),
-    spawn(fun() -> goanna_api:remove_node(State#?STATE.node) end),
-    State#?STATE{connected=false};
-reconnect(#?STATE{ connect_attempts = Attempts } = State) when Attempts > 10 ->
-    TRef = erlang:send_after(1000, self(), reconnect),
-    State#?STATE{connected=false, connect_attempt_ref=TRef, connect_attempts = Attempts+1 };
-reconnect(#?STATE{ connect_attempts = Attempts } = State) when Attempts > 3 ->
-    TRef = erlang:send_after(250, self(), reconnect),
-    State#?STATE{connected=false, connect_attempt_ref=TRef, connect_attempts = Attempts+1 };
-reconnect(#?STATE{ connect_attempts = Attempts } = State) when Attempts =< 3 ->
-    TRef = erlang:send_after(50, self(), reconnect),
-    State#?STATE{connected=false, connect_attempt_ref=TRef, connect_attempts = Attempts+1 }.
-%%------------------------------------------------------------------------
+%% -----------------------------------------------------------------------------------
+%% DBG steps
+
 trace_steps(Node, Cookie, tcpip_port) ->
-    tcpip_port_trace_steps(Node, Cookie);
-trace_steps(Node, Cookie, file) ->
-    file_port_trace_steps(Node, Cookie);
-trace_steps(Node, Cookie, erlang_distribution) ->
-    erlang_distribution_trace_steps(Node, Cookie).
+    % io:format("going to call tcpip_port_trace_steps~n", []),
+    tcpip_port_trace_steps(Node, Cookie).
+% trace_steps(Node, Cookie, file) ->
+%     file_port_trace_steps(Node, Cookie).
+% trace_steps(Node, Cookie, erlang_distribution) ->
+%     erlang_distribution_trace_steps(Node, Cookie).
 
+-spec tcpip_port_trace_steps(atom(), atom())
+        -> {ok, pid(), pid()} | {error, term()}.
 tcpip_port_trace_steps(Node, Cookie) ->
-    RelayPort = erlang:phash2(Node, 9000)+1023, % +1023, to make sure it's above the safe range
-    [_Name, RelayHost] = string:tokens(atom_to_list(Node), "@"),
-    case dbg_start(Node) of
-        {ok, RemoteDbgPid} ->
-            ok = wait_for_remote_code_server(Node),
-            PortGenerator = rpc:call(Node, dbg, trace_port, [ip, RelayPort]),
-            case rpc:call(Node, dbg, tracer, [port, PortGenerator]) of
-                {error, already_started} ->
-                    ok;
-                {ok, RemoteDbgPid} ->
-                    ok
-            end,
-            {ok,_MatchDesc} = dbg_p(Node),
-            {ok, Fun} = handler_fun(Node, Cookie, tcpip_port),
-            CLientPid = dbg:trace_client(ip, {RelayHost, RelayPort}, {Fun, ok}),
-            true = link(CLientPid),
-            %%?DEBUG("[~p] Node:~p MatchDesc:~p", [?MODULE, Node, MatchDesc]),
-            {ok, RemoteDbgPid};
-        Error ->
-            Error
+    try
+        RelayPort = erlang:phash2(Node, 9000)+1023, % +1023, to make sure it's above the safe range
+        [_Name, RelayHost] = string:tokens(atom_to_list(Node), "@"),
+        % io:format("tcpip_port_trace_steps calling dbg_start~n", []),
+        case dbg_start(Node) of
+            {ok, RemoteDbgPid} ->
+                ok = wait_for_remote_code_server(Node),
+                PortGenerator = rpc:call(Node, dbg, trace_port, [ip, RelayPort]),
+                io:format("PortGenerator : ~p~n", [PortGenerator]),
+                case rpc:call(Node, dbg, tracer, [port, PortGenerator]) of
+                    {error, already_started} ->
+                        ok;
+                    {ok, RemoteDbgPid} ->
+                        ok
+                end,
+                {ok,_MatchDesc} = dbg_p(Node),
+                {ok, Fun} = handler_fun(Node, Cookie, tcpip_port),
+                TraceCLientPid = dbg:trace_client(ip, {RelayHost, RelayPort}, {Fun, ok}),
+                io:format("TraceCLientPid : ~p~n", [TraceCLientPid]),
+                true = link(TraceCLientPid),
+                io:format("RemoteDbgPid : ~p~n", [RemoteDbgPid]),
+                {ok, RemoteDbgPid, TraceCLientPid};
+            Error ->
+                io:format("tcpip_port_trace_steps error ~p~n", [Error]),
+                Error
+        end
+    catch
+        C:E ->
+            io:format("was going to tcpip_port_trace_steps Encountered problem~n~p ~p ~p~n",
+                [C, E, erlang:get_stacktrace()])
     end.
 
-file_port_trace_steps(Node, Cookie) ->
-    case dbg_start(Node) of
-        {ok, RemoteDbgPid} ->
-            ok = wait_for_remote_code_server(Node),
-            PortGenerator = rpc:call(Node, dbg, trace_port, [file, "/Users/rp/hd2/code/goanna/tracefile"]),
-            case rpc:call(Node, dbg, tracer, [port, PortGenerator]) of
-                {error, already_started} ->
-                    ok;
-                {ok, RemoteDbgPid} ->
-                    ok
-            end,
-            {ok,_MatchDesc} = dbg_p(Node),
-            {ok, Fun} = handler_fun(Node, Cookie, file),
-            CLientPid = dbg:trace_client(file, "/Users/rp/hd2/code/goanna/tracefile", {Fun, ok}),
-            true = link(CLientPid),
-            %%?DEBUG("[~p] Node:~p MatchDesc:~p", [?MODULE, Node, MatchDesc]),
-            {ok, RemoteDbgPid};
-        Error ->
-            Error
-    end.
+% -spec file_port_trace_steps(atom(), atom())
+%         -> {ok, pid()} | {error, term()}.
+% file_port_trace_steps(Node, Cookie) ->
+%     case dbg_start(Node) of
+%         {ok, RemoteDbgPid} ->
+%             ok = wait_for_remote_code_server(Node),
+%             PortGenerator = rpc:call(Node, dbg, trace_port, [file, "/Users/rp/hd2/code/goanna/tracefile"]),
+%             case rpc:call(Node, dbg, tracer, [port, PortGenerator]) of
+%                 {error, already_started} ->
+%                     ok;
+%                 {ok, RemoteDbgPid} ->
+%                     ok
+%             end,
+%             {ok,_MatchDesc} = dbg_p(Node),
+%             {ok, Fun} = handler_fun(Node, Cookie, file),
+%             CLientPid = dbg:trace_client(file, "/Users/rp/hd2/code/goanna/tracefile", {Fun, ok}),
+%             true = link(CLientPid),
+%             io:format("RemoteDbgPid : ~p~n", [RemoteDbgPid]),
+%             {ok, RemoteDbgPid};
+%         Error ->
+%             Error
+%     end.
 
-erlang_distribution_trace_steps(Node, Cookie) ->
-    case dbg_start(Node) of
-        {ok, RemoteDbgPid} ->
-            {ok, RemoteFun} = handler_fun(Node, Cookie, erlang_distribution),
-            case rpc:call(Node, dbg, tracer,
-                         [Node, process, {RemoteFun, ok}])
-            of
-                {error, already_started} ->
-                    ok;
-                {ok, Node} ->
-                    ok
-            end,
-            {ok,_MatchDesc} = dbg_p(Node),
-            %%?DEBUG("[~p] Node:~p MatchDesc:~p", [?MODULE, Node, MatchDesc]),
-            {ok, RemoteDbgPid};
-        Error ->
-            Error
+-spec dbg_start(atom()) -> {ok, pid()} | {error, term()}.
+dbg_start(Node) ->
+    try
+        io:format("GOING TO CALL dbg_start remotely~n",[]),
+        {ok, _Pid} = rpc:call(Node, dbg, start, [])
+    catch
+        error:{badmatch,{badrpc,nodedown}} ->
+            % io:format("dbg_start got error {badmatch,{badrpc,nodedown}}~n"),
+            {error, {badrpc,nodedown}};
+        error:{badmatch,
+                {badrpc,{'EXIT',{{case_clause,DbgPid},_}}}} ->
+            % io:format("!!! dbg already started ~p ~n",[E]),
+            {ok, DbgPid};
+        C:E ->
+            io:format("[~p] line ~p -> {~p, ~p}", [?MODULE, ?LINE, C, E]),
+            {error, dbg_start_failed}
     end.
 
 wait_for_remote_code_server(Node) ->
-    wait_for_remote_code_server(Node, 100).
+    wait_for_remote_code_server(Node, 40). %% 40 times, at 25ms a try = 1000ms
 
 wait_for_remote_code_server(Node, Attempts) when Attempts =< 0 ->
     {error, {Node, undefined, code_server}};
@@ -361,182 +377,85 @@ wait_for_remote_code_server(Node, Attempts) when Attempts > 0 ->
 dbg_p(Node) ->
     {ok,_MatchDesc} = rpc:call(Node, dbg, p, [all, [call, timestamp]]).
 
-dbg_start(Node) ->
-    try
-        {ok, _Pid} = rpc:call(Node, dbg, start, [])
-    catch
-        error:{badmatch,{badrpc,nodedown}} ->
-            {badrpc,nodedown};
-        error:{badmatch,{badrpc,{'EXIT',
-                {{case_clause,DbgPid},_}
-              }}} ->
-            %%?DEBUG("[~p] DBG START Process:~p~n", [?MODULE, DbgPid]),
-            {ok, DbgPid};
-        _C:_E ->
-            %%?ALERT("[~p] DBG START failed ~p", [?MODULE, {C,E}]),
-            {ok, undefined}
+handler_fun(Node, Cookie, tcpip_port) ->
+    {ok, fun
+        (Trace={trace_ts, _Pid, _Label, _Info, _ReportedTS}, _) ->
+            goanna_node_sup:id(Node, Cookie) ! {trace_item, Trace};
+        (Trace={trace_ts, _Pid, _Label, _Info, _Extra, _ReportedTS}, _) ->
+            goanna_node_sup:id(Node, Cookie) ! {trace_item, Trace};
+        (_Trace={drop, NumberOfDroppedItems}, _X) ->
+            io:format("! Remote DBG dropped ~p message. Goanna could not consume fast enough!~n", [NumberOfDroppedItems]);
+        (end_of_trace, _) ->
+            ok;
+        (_Trace, _X) ->
+            % io:format("!!! NOT IMPLEMENTED !!! Dropping trace item : ~p~n", [Trace]),
+            % io:format("trace X : ~p~n", [X]),
+            ok
+    end}.
+%% TODO: implement file..
+% handler_fun(_Node, _Cookie, file) ->
+%     {ok, fun(_Trace, _) ->
+%         % case goanna_api:recv_trace([trace, goanna_node_sup:id(Node,Cookie)],Trace) of
+%         %     ok ->
+%         %         ok;
+%         %     stop_tracing ->
+%         %         ok
+%         % end
+%         %%io:format("FILE TRACE: ~p\n", [Trace])
+%         ok
+%     end}.
+
+trace(_ChildId, [], _) ->
+    ok;
+trace(ChildId, [H|T], Node) ->
+    %% TODO: how to report, already traced...
+    _ = trace(ChildId, H, Node),
+    trace(ChildId, T, Node);
+trace(ChildId, TrcPattern, Node) ->
+    case goanna_db:lookup([tracelist, ChildId, TrcPattern]) of
+        [] ->
+            true = goanna_db:store([tracelist, ChildId, TrcPattern], []),
+            {ok, _} = enable_tracing(Node, TrcPattern);
+        [{{ChildId, TrcPattern}, _Opts}] ->
+            {error, {TrcPattern, already_tracing}}
     end.
 
-%% TODO: implement file..
-%% TODO: how would i stop the remote tracing, if goanna, dies... ?
-handler_fun(Node, Cookie, tcpip_port) ->
-    {ok, fun(Trace, _) ->
-        case goanna_api:recv_trace([trace, goanna_node_sup:id(Node,Cookie)],Trace) of
-            ok ->
-                ok;
-            stop_tracing ->
-            	dbg:stop_clear()
-        end
-    end};
-handler_fun(_Node, _Cookie, file) ->
-    {ok, fun(_Trace, _) ->
-        % case goanna_api:recv_trace([trace, goanna_node_sup:id(Node,Cookie)],Trace) of
-        %     ok ->
-        %         ok;
-        %     stop_tracing ->
-        %         ok
-        % end
-        %%io:format("FILE TRACE: ~p\n", [Trace])
-        ok
-    end};
-handler_fun(Node, Cookie, erlang_distribution) ->
-    FunStr = lists:flatten(io_lib:format(
-        "fun(Trace, _) -> "
-        "  case rpc:call(~p, goanna_api, recv_trace, [[trace,~p],Trace]) of "
-        "    ok -> ok; "
-        "    stop_tracing -> ok "
-        "  end "
-        "end.", [node(), goanna_node_sup:id(Node,Cookie)])),
-    {ok, Tokens, _} = erl_scan:string(FunStr),
-    {ok,[Form]} = erl_parse:parse_exprs(Tokens),
-    Bindings = erl_eval:add_binding('B', 2, erl_eval:new_bindings()),
-    {value, Fun, _} = erl_eval:expr(Form, Bindings),
-    {ok, Fun}.
-%%------------------------------------------------------------------------
-enable_tracing(_Node, false) ->
-    {error, nothing_to_trace};
-enable_tracing(Node, _T=#trc_pattern{m=Module,f=undefined,a=undefined,ms=undefined}) ->
-    {ok, _MatchDesc} = rpc:call(Node, dbg, tpl, [Module, cx]),
-    {ok, _MatchDesc2} = rpc:call(Node, dbg, ctpl, [Module, module_info]),
-    ok;
-enable_tracing(Node, _T=#trc_pattern{m=Module,f=Function,a=undefined,ms=undefined}) ->
-    {ok, _MatchDesc} = rpc:call(Node, dbg, tpl, [Module, Function, cx]),
-    ok;
-enable_tracing(Node, _T=#trc_pattern{m=Module,f=Function,a=Arity,ms=undefined}) ->
-    {ok, _MatchDesc} = rpc:call(Node, dbg, tpl,[Module, Function, Arity, cx]),
-    ok;
-enable_tracing(Node, _T=#trc_pattern{m=Module,f=Function,a=Arity,ms=Ms}) ->
-    {ok, _MatchDesc} = rpc:call(Node, dbg, tpl,[Module, Function, Arity, Ms]),
+enable_tracing(Node, {M}) ->
+    rpc:call(Node, dbg, tpl, [M, cx]); %% {ok, _MatchDesc}
+enable_tracing(Node, {M, F}) ->
+    rpc:call(Node, dbg, tpl, [M, F, cx]); %% {ok, _MatchDesc}
+enable_tracing(Node, {M, F, A}) ->
+    rpc:call(Node, dbg, tpl,[M, F, A, cx]); %% {ok, _MatchDesc}
+enable_tracing(Node, {M, F, A, Ms}) ->
+    rpc:call(Node, dbg, tpl,[M, F, A, Ms]). %% {ok, _MatchDesc}
+
+-spec disable_all_tracing(atom()) -> ok.
+disable_all_tracing(Node) ->
+    % io:format("Disabling all traces...~n", []),
+    remote_dbg_ctpl(Node, []),
+    io:format("calling dbg:stop_clear on ~p...~n", [Node]),
+    rpc:call(Node, dbg, stop_clear, []),
+    % io:format("remote dbg stop clear all traces...~n", []),
     ok.
 
-%%------------------------------------------------------------------------
-disable_all_tracing(Connected, _Node, _Cookie) when Connected=:=false ->
-    {ok, undefined};
-disable_all_tracing(Connected, Node, _Cookie) when Connected=:=true ->
-    ok = remote_dbg_ctpl(Node, []),
-    case rpc:call(Node, dbg, stop_clear, []) of
-        ok ->
-            ok;
-        {badrpc,nodedown} ->
-            % ?CRITICAL("Tried stopping DBG, but node has gone..."),
-            ok
-    end.
-
-clear_tracelist_restart_dbg(Node, Cookie, Type) ->
+clear_tracelist(Node, Cookie, Type) ->
     %% Just make sure dbg, and tracer is always started..
     %% TODO: actually, maybe only start DBG remotely when needed...( if tracing )
-    case dbg_start(Node) of
-        {ok, _RemoteDbgPid} ->
-            [{Node, Cookie, Type}] = goanna_db:lookup([nodelist, Node]),
-            true = goanna_db:delete_child_id_tracelist(Node, Cookie),
-            trace_steps(Node, Cookie, Type);
-        {badrpc,nodedown} ->
-            {ok, undefined}
-    end.
-%%------------------------------------------------------------------------
+    [{Node, Cookie, Type}] = goanna_db:lookup([nodelist, Node]),
+    true = goanna_db:truncate_tracelist([]).
+
+% No "{ok,_} = " matching, becasue the node might have disconnected already.
 remote_dbg_ctpl(Node, []) ->
-    %%?DEBUG("[~p] [~p] Disable all tracing", [?MODULE, Node]),
-    case rpc:call(Node, dbg, ctpl, []) of
-        {badrpc, nodedown} ->
-            ok;
-        {ok, _MatchDesc} ->
-            %%?DEBUG("[~p] [~p] dbg:ctpl MatchDesc ~p",
-                % [?MODULE, Node, MatchDesc])
-            ok
-    end;
-remote_dbg_ctpl(Node, _T=#trc_pattern{m=Module,f=undefined,a=undefined}) ->
-    %%?DEBUG("[~p] [~p] Disable ~p tracing", [?MODULE, Node, T]),
-    case rpc:call(Node, dbg, ctpl, [Module]) of
-        {badrpc, nodedown} ->
-            ok;
-        {ok, _MatchDesc} ->
-            %%?DEBUG("[~p] [~p] dbg:ctpl MatchDesc ~p",
-                %[?MODULE, Node, MatchDesc])
-            ok
-    end;
-remote_dbg_ctpl(Node, _T=#trc_pattern{m=Module,f=Function,a=undefined}) ->
-    %%?DEBUG("[~p] [~p] Disable ~p tracing", [?MODULE, Node, T]),
-    case rpc:call(Node, dbg, ctpl, [Module, Function]) of
-        {badrpc, nodedown} ->
-            ok;
-        {ok, _MatchDesc} ->
-            %%?DEBUG("[~p] [~p] dbg:ctpl MatchDesc ~p",
-                %[?MODULE, Node, MatchDesc])
-            ok
-    end;
-remote_dbg_ctpl(Node, _T=#trc_pattern{m=Module,f=Function,a=Arity}) ->
-    %%?DEBUG("[~p] [~p] Disable ~p tracing", [?MODULE, Node, T]),
-    case rpc:call(Node, dbg, ctpl, [Module, Function, Arity]) of
-        {badrpc, nodedown} ->
-            ok;
-        {ok, _MatchDesc} ->
-            %%?DEBUG("[~p] [~p] dbg:ctpl MatchDesc ~p",
-                %[?MODULE, Node, MatchDesc])
-            ok
-    end.
-%%------------------------------------------------------------------------
--spec handle_data_retrival_method({push, non_neg_integer(), atom()} | pull) -> reference() | undefined.
-handle_data_retrival_method({push, Interval, Mod}) ->
-    PushTRef = erlang:send_after(Interval, self(), {push_data, Mod}),
-    _PendingPush=PushTRef;
-handle_data_retrival_method(pull) ->
-    _PendingPush=undefined.
+    rpc:call(Node, dbg, ctpl, []);
+remote_dbg_ctpl(Node, {Module}) ->
+    rpc:call(Node, dbg, ctpl, [Module]);
+remote_dbg_ctpl(Node, {Module, Function}) ->
+    rpc:call(Node, dbg, ctpl, [Module, Function]);
+remote_dbg_ctpl(Node, {Module, Function, Arity}) ->
+    rpc:call(Node, dbg, ctpl, [Module, Function, Arity]).
 
-push_data_loop(Mod, Tbl, Node) ->
-    First =
-        try
-            ets:first(Tbl)
-        catch
-            _C:_E ->
-                % ?ALERT("ets:first got exception ~p ~p", [C, E]),
-                '$end_of_table'
-        end,
-    push_data_loop(Mod, Tbl, Node, First).
-
-%% TODO: Simplify, and abstract out, this simple db table walk
-push_data_loop(_Mod, _Tbl, _Node, '$end_of_table') ->
+cancel_timer(undefined) ->
     ok;
-push_data_loop(Mod, Tbl, Node, Key) ->
-    [E] = goanna_db:lookup([trace, Tbl, Key]),
-    ok = Mod:forward(Tbl, E),
-    true = ets:delete(Tbl, Key),
-    push_data_loop(Mod, Tbl, Node, ets:next(Tbl, Key)).
-%%------------------------------------------------------------------------
-new_trace_timer(_ChildId, false, false) ->
-    false;
-new_trace_timer(_ChildId, false, TRef) ->
-    ok = cancel_timer(TRef),
-    false;
-new_trace_timer(ChildId, NewTraceTime, false) ->
-    %%?WARNING("STOPPING traces after ~p Seconds", [NewTraceTime/1000]),
-    {ok, TRef} = timer:apply_after(NewTraceTime, gen_server, call, [ChildId, stop_all_trace_patterns]),
-    TRef;
-new_trace_timer(ChildId, NewTraceTime, {_, TRef}) when is_reference(TRef) ->
-    ok = cancel_timer(TRef),
-    %%?WARNING("STOPPING traces after ~p Seconds", [NewTraceTime/1000]),
-    {ok, NewTRef} = timer:apply_after(NewTraceTime, gen_server, call, [ChildId, stop_all_trace_patterns]),
-    NewTRef.
-
 cancel_timer(TRef) ->
     try
         case timer:cancel(TRef) of
@@ -547,57 +466,26 @@ cancel_timer(TRef) ->
         end
     catch
         _C:_E ->
-            %%?EMERGENCY("Could not clear timer: ~p ~p~n~p", [C,E,erlang:get_stacktrace()]),
             ok
     end.
-%%------------------------------------------------------------------------
--spec list_property_or_default(term(), proplists:proplist(), term()) -> term().
-list_property_or_default(Field, Opts, Default) ->
-    case lists:keyfind(Field, 1, Opts) of
-        false          -> Default;
-        {Field, Value} -> Value
-    end.
 
--spec reapply_traces(#?STATE{}) -> #?STATE{}.
-reapply_traces(#?STATE{node = Node,
-                       child_id=ChildId,
-                       trace_time=TraceTime} = State) ->
-    case ets:tab2list(tracelist) of
-        [] ->
-            State;
-        Traces ->
-            %% TODO: add trace timers per trace pattern
-            ok = lists:foreach(
-                fun
-                    ({{C, TrcPattern},_Opts}) when C==ChildId ->
-                        ok = enable_tracing(Node, TrcPattern);
-                    ({{_, _TrcPattern},_Opts}) ->
-                        ok
-                end,
-                Traces
-            ),
-            State#?STATE{
-                trace_timer_tref = new_trace_timer(ChildId, TraceTime, false),
-                trace_active = true
-            }
-    end.
+%% -----------------------------------------------------------------------------------
+%% Sys calls
 
--spec check_forward_mod(undefined | atom()) -> ok.
-check_forward_mod(undefined) ->
-    ok;
-check_forward_mod(Mod) ->
-    % Make sure the default is loaded...ugly...
-    c:l(Mod),
-    % TODO: build a behaviour checker...
-    case erlang:function_exported(Mod, forward, 2) of
-        true ->
-        	%%?DEBUG("Forward module checked...", []);
-            ok = Mod:forward_init(ok),
-            ok;
-        false ->
-            %%?EMERGENCY("[~p] Forwarding callback module ~p
-                % missing required behaviour functions...halting...",
-                % [?MODULE, Mod]),
-            erlang:halt(1),
-            ok
-    end.
+get_status(SysState, Parent, Mod, Debug, Misc) ->
+    PDict = get(),
+    FmtArgs = [PDict, SysState, Parent, Debug, Misc],
+    FmtMisc = format_status(normal, FmtArgs),
+    {status, self(), {module, Mod}, [PDict, SysState, Parent, Debug, FmtMisc]}.
+
+format_status(_Opt, StatusData) ->
+    [_PDict, SysState, Parent, _Debug, [Name, State, _Mod, _Time, _HibernateAfterTimeout]] = StatusData,
+    Header = "Status for process "++atom_to_list(Name),
+    Log = [],
+    [{header, Header},
+     {data, [{"Status", SysState},
+             {"Parent", Parent},
+             {"Logged events", Log},
+             {"State", State}
+            ]
+    }].

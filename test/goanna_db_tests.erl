@@ -30,27 +30,26 @@ delete_child_id_tracelist() ->
     Cookie = somecookie,
     ChildId = goanna_node_sup:id(Node, Cookie),
     ChildId2 = goanna_node_sup:id(Node2, Cookie),
-    TrcPattern = #trc_pattern{m=goanna_test_module, f=function},
-    TrcPattern2 = #trc_pattern{m=goanna_test_module, f=function2},
+    %TrcPattern = #trc_pattern{m=goanna_test_module, f=function},
+    TrcPattern = {goanna_test_module, function},
+    % TrcPattern2 = #trc_pattern{m=goanna_test_module, f=function2},
+    TrcPattern2 = {goanna_test_module, function2},
     Opts = [{messages,1},{time,100000}],
     true = goanna_db:store([tracelist, ChildId, TrcPattern], Opts),
-    ?assertMatch( %% 1 trc pattern 1 child
-        [ {
-           {_,{trc_pattern,goanna_test_module,function,undefined,undefined}},
-           [{messages,1},{time,100000}]
-          }
-        ],
+    ?assertEqual( %% 1 trc pattern 1 child
+        [{{'nonode@nohost©somecookie',{goanna_test_module,function}},
+            Opts}],
         goanna_db:all(tracelist)
     ),
     true = goanna_db:store([tracelist, ChildId, TrcPattern2], Opts),
     ?assertMatch( %% 2 trc pattern 1 child
         [ {
-           {ChildId,{trc_pattern,goanna_test_module,function,undefined,undefined}},
-           [{messages,1},{time,100000}]
+           {ChildId,TrcPattern},
+           Opts
           },
           {
-           {ChildId,{trc_pattern,goanna_test_module,function2,undefined,undefined}},
-           [{messages,1},{time,100000}]
+           {ChildId,TrcPattern2},
+           Opts
           }
         ],
         lists:sort(goanna_db:all(tracelist))
@@ -58,16 +57,16 @@ delete_child_id_tracelist() ->
     true = goanna_db:store([tracelist, ChildId2, TrcPattern], Opts),
     ?assertMatch( %% 3 trc pattern 2 children
         [ {
-           {ChildId2,{trc_pattern,goanna_test_module,function,undefined,undefined}},
-           [{messages,1},{time,100000}]
+           {ChildId2,TrcPattern},
+           Opts
           },
           {
-           {ChildId,{trc_pattern,goanna_test_module,function,undefined,undefined}},
-           [{messages,1},{time,100000}]
+           {ChildId,TrcPattern},
+           Opts
           },
           {
-           {ChildId,{trc_pattern,goanna_test_module,function2,undefined,undefined}},
-           [{messages,1},{time,100000}]
+           {ChildId,TrcPattern2},
+           Opts
           }
         ],
         lists:sort(goanna_db:all(tracelist))
@@ -76,8 +75,8 @@ delete_child_id_tracelist() ->
     true = goanna_db:delete_child_id_tracelist(Node, Cookie),
     ?assertMatch( %% 1 trc pattern 1 child, other 2 are deleted
         [ {
-           {ChildId2,{trc_pattern,goanna_test_module,function,undefined,undefined}},
-           [{messages,1},{time,100000}]
+           {ChildId2,TrcPattern},
+           Opts
           }
         ],
         goanna_db:all(tracelist)

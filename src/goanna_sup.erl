@@ -14,9 +14,6 @@
 -define(CHILD(Id, Mod, Type, Args),
     {Id, {Mod, start_link, Args}, permanent, 5000, Type, [Mod]}).
 
--define(CHILD(Id, Mod, Func, Type, Args),
-    {Id, {Mod, Func, Args}, permanent, 5000, Type, [Mod]}).
-
 %% ===================================================================
 %% API functions
 %% ===================================================================
@@ -31,11 +28,11 @@ start_link() ->
 
 -spec init([]) -> {ok,term()}.
 init([]) ->
-    goanna_db:init(),
     RestartStrategy = one_for_one,
     MaxRestarts = 10000,
     MaxSecondsBetweenRestarts = 9600,
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
     {ok, {SupFlags, [
-                      ?CHILD(gns, goanna_node_sup, supervisor, [])
-                    ]}}.
+        ?CHILD(gns, goanna_node_sup, supervisor, []),
+        ?CHILD(gnm, goanna_node_mon, worker, [])
+    ]}}.

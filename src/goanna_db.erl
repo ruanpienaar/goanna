@@ -1,4 +1,4 @@
--module (goanna_db).
+    -module (goanna_db).
 -export ([init/0,
           init_node/1,
           nodes/0,
@@ -11,22 +11,24 @@
           truncate_tracelist/1,
           truncate_traces/1,
           pull/1,
-          pull/2
+          pull/2,
+          push/3
 ]).
 
 %% API
 -spec init() -> relay_tcpip_allocated_ports.
 init() ->
-    nodelist = ets:new(nodelist, [public, set, named_table]),
-    tracelist = ets:new(tracelist, [public, set, named_table]),
-    relay_tcpip_allocated_ports = ets:new(relay_tcpip_allocated_ports, [public, set, named_table]).
+    nodelist =
+        ets:new(nodelist, [public, set, named_table]),
+    tracelist =
+        ets:new(tracelist, [public, set, named_table]),
+    relay_tcpip_allocated_ports =
+        ets:new(relay_tcpip_allocated_ports, [public, set, named_table]).
 
 -spec init_node(list()) -> atom().
-init_node([Node, Cookie, Type]) ->
+init_node([Node, Cookie, Type, ChildId]) ->
     NodeObj = {Node, Cookie, Type},
     true = ets:insert(nodelist, NodeObj),
-    ChildId = goanna_node_sup:id(Node, Cookie),
-    %% Table shouldn't exist, but crash if it does...
     undefined = ets:info(ChildId, size),
     ChildId = ets:new(ChildId, [public, ordered_set, named_table]),
     {ok, NodeObj}.
@@ -50,6 +52,8 @@ store([tracelist, ChildId, TrcPattern], Opts) ->
 -spec lookup(list()) -> term().
 lookup([nodelist, Node]) ->
     ets:lookup(nodelist, Node);
+lookup([tracelist, ChildId]) ->
+    ets:match_object(tracelist, {{ChildId, '_'}, '_'});
 lookup([tracelist, ChildId, TrcPattern]) ->
     ets:lookup(tracelist, {ChildId, TrcPattern});
 lookup([tracelist, Node, Cookie, TrcPattern]) ->
@@ -59,7 +63,9 @@ lookup([trace, Tbl, Key]) ->
     ets:lookup(Tbl, Key).
 
 all(tracelist) ->
-    ets:tab2list(tracelist).
+    ets:tab2list(tracelist);
+all(nodelist) ->
+    ets:tab2list(nodelist).
 
 -spec delete_node(atom(), atom()) -> true | {error, term()}.
 delete_node(Node, Cookie) ->
@@ -76,54 +82,50 @@ delete_child_id_trace_pattern(Node, Cookie, TrcPattern) ->
     ChildId = goanna_node_sup:id(Node, Cookie),
     true = ets:match_delete(tracelist, {{ChildId, TrcPattern}, '_'}).
 
--spec truncate_tracelist(list()) -> [] | {error, term()}.
+-spec truncate_tracelist(list()) -> true | {error, term()}.
 truncate_tracelist([]) ->
-    true = ets:delete_all_objects(tracelist).
+    ets:delete_all_objects(tracelist).
 
 -spec truncate_traces(term()) -> ok | {error, term()}.
 truncate_traces(Tbl) ->
     ok = ets:delete_all_objects(Tbl).
 
--spec first(atom()) -> '$end_of_table' | term().
-first(Tbl) ->
-	ets:first(Tbl).
-
--spec next(term(), term()) -> '$end_of_table' | term().
-next(Tbl, Continuation) ->
-	ets:next(Tbl, Continuation).
-
-end_of_table() ->
-	'$end_of_table'.
-
-lookup_entry(Tbl, Key) ->
-	ets:lookup(Tbl, Key).
-
-delete(Tbl, Key) ->
-	true = ets:delete(Tbl, Key).
-
 -spec pull(atom()) -> list().
 pull(Tbl) ->
-	pull(Tbl, 1).
+    case ets:first(Tbl) of
+        '$end_of_table' ->
+            [];
+        Key ->
+            ets:take(Tbl, Key)
+    end.
 
 -spec pull(atom(), non_neg_integer()) -> list().
-pull(Tbl, BatchSize) ->
-	End=end_of_table(),
-	case first(Tbl) of
-		End ->
-			[];
-		FirstKey ->
-			pull(Tbl, BatchSize, FirstKey, [])
-	end.
+pull(Tbl, Amount) ->
+    pull(Tbl, Amount, ets:first(Tbl), []).
 
-pull(_Tbl, _BatchSize, '$end_of_table', R) ->
-	lists:reverse(R);
-pull(_Tbl, BatchSize, _Key, R) when BatchSize =< 0 ->
-	lists:reverse(R);
-pull(Tbl, BatchSize, Key, R) when is_integer(BatchSize) ->
-	case lookup_entry(Tbl, Key) of
-		[] ->
-			lists:reverse(R);
-		[Entry] ->
-			true = delete(Tbl, Key),
-			pull(Tbl, BatchSize-1, next(Tbl,Key), [Entry|R])
-	end.
+-spec pull(atom(), non_neg_integer(), '$end_of_table' | term(), list()) -> ok.
+pull(_Tbl, _Amount, '$end_of_table', []) ->
+    [];
+pull(_Tbl, _Amount, '$end_of_table', R) ->
+    lists:reverse(R);
+pull(_Tbl, 0, _Key, R) ->
+    lists:reverse(R);
+pull(Tbl, Amount, Key, R) when Amount > 0 ->
+    NextKey = ets:next(Tbl, Key),
+    [E] = ets:take(Tbl, Key),
+    pull(Tbl, Amount-1, NextKey, [E|R]).
+
+-spec push(term(), atom(), non_neg_integer()) -> ok.
+push(Tbl, Mod, Amount) ->
+    push(Tbl, Mod, Amount, ets:first(Tbl)).
+
+-spec push(term(), atom(), non_neg_integer(), '$end_of_table' | term()) -> ok.
+push(_Tbl, _Mod, _Amount, '$end_of_table') ->
+    ok;
+push(_Tbl, _Mod, 0, _) ->
+    ok;
+push(Tbl, Mod, Amount, Key) when Amount > 0 ->
+    NextKey = ets:next(Tbl, Key),
+    [E] = ets:take(Tbl, Key),
+    ok = Mod:forward(Tbl, E),
+    push(Tbl, Mod, Amount-1, NextKey).

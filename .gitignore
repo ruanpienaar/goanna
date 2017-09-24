@@ -12,3 +12,6 @@ _build
 rebar.lock
 rebar3
 sys.config
+.tags
+.tags_sorted_by_file
+TEST-*

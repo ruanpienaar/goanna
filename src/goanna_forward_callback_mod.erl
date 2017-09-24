@@ -25,7 +25,10 @@
     gc_start |
     gc_end.
 
-% The label component is an integer which identifies all events belonging to the same sequential trace. If several sequential traces can be active simultaneously, label is used to identify the separate traces. Default is 0.
+% The label component is an integer which identifies all
+%  events belonging to the same sequential trace.
+% If several sequential traces can be active simultaneously,
+% label is used to identify the separate traces. Default is 0.
 -type seq_trace_label() :: integer().
 
 % this is usually the meat of the trace mesage:
@@ -43,7 +46,8 @@
     {send, Serial :: any(), From :: any(), To :: any(), Message :: any()} |
     % Used when a process To receives a message with a trace token that has flag 'receive' set to true.
     {'receive', Serial :: any(), From :: any(), To :: any(), Message :: any()} |
-    % Used when a process From has called seq_trace:print(Label, TraceInfo) and has a trace token with flag print set to true, and label set to Label.
+    % Used when a process From has called seq_trace:print(Label, TraceInfo)
+    %  and has a trace token with flag print set to true, and label set to Label.
     {print, Serial :: any(), From :: any(), _ :: any(), Info :: any()}.
 
 -type erlang_trace_data() ::
