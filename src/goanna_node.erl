@@ -138,7 +138,7 @@ loop(#{
             % io:format("dropping trace...~p~n", [Trace]),
             loop(State);
         {push_data, Mod, Amount} ->
-            io:format("loop receive -> ~s~n", ["{push_data, Mod, Amount} ->"]),
+            %% io:format("loop receive -> ~s~n", ["{push_data, Mod, Amount} ->"]),
             ok = goanna_db:push(ChildId, Mod, Amount),
             loop(State);
         {trace_item, Trace} when Tracing ->
