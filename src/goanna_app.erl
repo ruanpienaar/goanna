@@ -17,7 +17,7 @@ start(_StartType, _StartArgs) ->
         {ok, SupPid} ->
 
             %% Sys.config nodes being added below:
-            ok = lists:foreach(fun([Node, Cookie]) ->
+            ok = lists:foreach(fun({Node, Cookie}) ->
                 ChildId = goanna_node_sup:id(Node, Cookie),
 
                 %% Sys.config traces being added below:

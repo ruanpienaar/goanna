@@ -43,9 +43,7 @@ Beam shell example:
 ```erlang
  {goanna,[
     {nodes,[
-        [{node,   NodeName}, %% 'somenode@myhost.com'
-         {cookie, Cookie}]   %% oreo
-        ]
+        {NodeName, Cookig} %% 'somenode@myhost.com', oreo
     ]}
  ]}
 ```
