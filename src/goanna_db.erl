@@ -30,7 +30,7 @@ init_node([Node, Cookie, Type, ChildId]) ->
     NodeObj = {Node, Cookie, Type},
     true = ets:insert(nodelist, NodeObj),
     undefined = ets:info(ChildId, size),
-    ChildId = ets:new(ChildId, [public, ordered_set, named_table]),
+    ChildId = ets:new(ChildId, [public, ordered_set, named_table, {write_concurrency, true}, {read_concurrency, true}]),
     {ok, NodeObj}.
 
 -spec nodes() -> list().

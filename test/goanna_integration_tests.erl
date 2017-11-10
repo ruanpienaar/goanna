@@ -80,8 +80,10 @@ goanna_api_add_node() ->
     ?assert(is_pid(GoannaNodePid)),
     ?assertEqual(ok, wait_for_node({Node,Cookie,tcpip_port}, 100, 25)),
     %% Adding a duplicate
-    {error,{already_started,GoannaNodePid}} =
-        goanna_api:add_node(Node, cookie, tcpip_port),
+    ?assertMatch(
+        {ok, GoannaNodePid},
+        goanna_api:add_node(Node, cookie, tcpip_port)
+    ),
     ?assertEqual(
         [{Node,Cookie,tcpip_port}],
         goanna_api:nodes()
@@ -485,6 +487,7 @@ list_active_traces() ->
 %%------------------------------------------------------------------------
 
 setup() ->
+    error_logger:tty(false),
     'goanna_eunit_test@localhost' = make_distrib("goanna_eunit_test@localhost", shortnames),
     ok = do_slave_start(),
     {ok,_} = goanna_api:start(),
