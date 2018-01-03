@@ -153,7 +153,7 @@ loop(#{
         {trace_item, Trace} when Tracing ->
             % io:format("loop receive -> ~s~n", ["{trace_item, Trace} when Tracing ->"]),
             %% Check trace counts, and timer!!!
-            true = goanna_db:store([trace, ChildId], Trace),
+            true = goanna_db:store_trace(ChildId, Trace),
             loop(State#{ trace_msg_count => TMC+1 });
         {stop_all_trace_patterns} when not Tracing ->
             % io:format("loop receive -> ~s~n", ["{stop_all_trace_patterns} when not Tracing ->"]),
@@ -428,7 +428,7 @@ trace(ChildId, [H|T], Node) ->
 trace(ChildId, TrcPattern, Node) ->
     case goanna_db:lookup([tracelist, ChildId, TrcPattern]) of
         [] ->
-            true = goanna_db:store([tracelist, ChildId, TrcPattern], []),
+            true = goanna_db:store_trace_pattern(ChildId, TrcPattern, []),
             {ok, _} = enable_tracing(Node, TrcPattern);
         [{{ChildId, TrcPattern}, _Opts}] ->
             {error, {TrcPattern, already_tracing}}
