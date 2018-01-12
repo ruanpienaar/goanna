@@ -5,6 +5,7 @@
     start/0, stop/0,
     add_node/2,
     add_node/3,
+    add_node_callbacks/3,
     remove_node/1,
     remove_goanna_node/1,
     remove_goanna_callbacks/1,
