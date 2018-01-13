@@ -5,6 +5,7 @@
     start/0, stop/0,
     add_node/2,
     add_node/3,
+    add_node_callbacks/2,
     add_node_callbacks/3,
     remove_node/1,
     remove_goanna_node/1,
@@ -74,6 +75,9 @@ add_node(Node, Cookie, Type) when Type =:= tcpip_port orelse
 add_node(_, _, _) ->
     {error, badarg}.
 
+add_node_callbacks(Node, Cookie) ->
+    add_node_callbacks(Node, Cookie, tcpip_port).
+    
 add_node_callbacks(Node, Cookie, Type) ->
     % Maybe check if they are not already there...
     % {ok, _Pid, _Callbacks} = hawk:node_exists(Node),
