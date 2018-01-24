@@ -20,6 +20,20 @@
 -type type() :: tcpip_port | file.
 -type node_obj() :: {node(), cookie(), type()}.
 
+-define(ETS_TAKE(Tbl, Id), ets:take(Tbl, Id)).
+-define(ETS_LOOKUP_DELETE(), 
+    begin 
+        case ets:lookup(Tbl, Id) of
+            [] ->
+                ok;
+            [V] ->
+                true = ets:delete(Tbl, Id),
+                [V]
+        end
+    end
+).
+
+
 %% API
 -spec init() -> relay_tcpip_allocated_ports.
 init() ->
@@ -135,3 +149,4 @@ push(ChildId, Mod, Amount, Key) when Amount > 0 ->
     [E] = ets:take(ChildId, Key),
     ok = Mod:forward(ChildId, E),
     push(ChildId, Mod, Amount-1, NextKey).
+
