@@ -7,7 +7,7 @@
 
 start_link() ->
     {ok, proc_lib:spawn_link(fun() ->
-        register(?MODULE, self()),
+        true = register(?MODULE, self()),
         loop([])
     end)}.
 

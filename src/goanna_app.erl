@@ -12,9 +12,9 @@
 
 -spec start(term(), term()) -> {ok, pid()}.
 start(_StartType, _StartArgs) ->
-    goanna_db:init(),
     case goanna_sup:start_link() of
         {ok, SupPid} ->
+            goanna_db:init(),
             %% Sys.config nodes being added below:
             ok = lists:foreach(fun({Node, Cookie}) ->
                 ChildId = goanna_node_sup:id(Node, Cookie),
@@ -24,10 +24,10 @@ start(_StartType, _StartArgs) ->
                                     ( size(TrcPattern)==1 orelse
                                       size(TrcPattern)==2 orelse
                                       size(TrcPattern)==3 ) ->
-                        true = goanna_db:store([tracelist, ChildId, TrcPattern], []);
-                    (TrcPattern) when is_list(TrcPattern) ->
+                        true = goanna_db:store_trace_pattern(ChildId, [TrcPattern], []);
+                    (TrcPattern) when is_list(TrcPattern) -> %% TODO: maybe add a is_string() check?
                         {{M,F,A},MatchSpec,[_Flag]} = redbug_msc:transform(TrcPattern),
-                        true = goanna_db:store([tracelist, ChildId, {M,F,A,MatchSpec}], [])
+                        true = goanna_db:store_trace_pattern(ChildId, [{M,F,A,MatchSpec}], [])
                 end, application:get_env(goanna, traces, [])),
                 {ok, _} = goanna_api:add_node(Node, Cookie)
             end, application:get_env(goanna, nodes, [])),

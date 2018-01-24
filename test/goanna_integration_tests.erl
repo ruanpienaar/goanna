@@ -7,14 +7,17 @@
 
 -behaviour(goanna_forward_callback_mod).
 
+-define(TEST_NODE_NAME, 'goanna_integration_test_node').
+
+-define(TEST_NODE(Host),
+    list_to_atom(atom_to_list(?TEST_NODE_NAME)++"@"++Host)
+).
+
 % TODO: how shall i do this?i've just exported forward/1
 % -behaviour("").
 -export([
     forward_init/1,
-	forward/2,
-	trace/1,
-	do_trace/1,
-	start_dbg/0
+    forward/2
 ]).
 
 %% Find a smarter way of creating a remote node...
@@ -23,8 +26,6 @@ api_test_() ->
      fun setup/0,
      fun cleanup/1,
      [
-        {"goanna_api_nodes",
-            ?_assert(ok==try_test_fun(fun goanna_api_nodes/0))},
         {"goanna_api_add_node",
             ?_assert(ok==try_test_fun(fun goanna_api_add_node/0))},
         {"goanna_api_add_node_validation",
@@ -56,7 +57,25 @@ api_test_() ->
      ]
     }.
 
--define(TEST_NODE, 'goanna_integration_tests@localhost').
+setup() ->
+    error_logger:tty(false),
+    {ok, Host} = inet:gethostname(),
+    {ok, _} = unit_testing:start_distrib(list_to_atom("goanna_eunit_test@"++Host),
+        shortnames,
+        4000),
+    Slaves = unit_testing:slaves_setup([{Host, ?TEST_NODE_NAME}]),
+    {ok,_} = goanna_api:start(),
+    Slaves.
+
+cleanup(Slaves) ->
+    [ ok = goanna_api:remove_node(NodeName) || {NodeName,_Cookie,_Type} <- goanna_api:nodes() ],
+    true = unit_testing:wait_for_next_value(10, fun() ->
+        goanna_api:nodes() == []
+    end, false),
+    unit_testing:stop_extra_applications(),
+    true = unit_testing:cleanup_slaves(Slaves),
+    ok = unit_testing:stop_distrib(),
+    timer:sleep(50).
 
 try_test_fun(TestFun) ->
     try
@@ -68,21 +87,19 @@ try_test_fun(TestFun) ->
             failed
     end.
 
-goanna_api_nodes() ->
-    [] = goanna_api:nodes().
-
 goanna_api_add_node() ->
+    {ok, Host} = inet:gethostname(),
     [] = goanna_api:nodes(),
-    Node = ?TEST_NODE,
+    Node = ?TEST_NODE(Host),
     Cookie = cookie,
     {ok, GoannaNodePid} =
-        goanna_api:add_node(Node, cookie, tcpip_port),
+        goanna_api:add_node(Node, Cookie, tcpip_port),
     ?assert(is_pid(GoannaNodePid)),
     ?assertEqual(ok, wait_for_node({Node,Cookie,tcpip_port}, 100, 25)),
     %% Adding a duplicate
     ?assertMatch(
         {ok, GoannaNodePid},
-        goanna_api:add_node(Node, cookie, tcpip_port)
+        goanna_api:add_node(Node, Cookie, tcpip_port)
     ),
     ?assertEqual(
         [{Node,Cookie,tcpip_port}],
@@ -99,13 +116,14 @@ goanna_api_add_node_validation() ->
     [] = goanna_api:nodes().
 
 remove_node() ->
+    {ok, Host} = inet:gethostname(),
     [] = goanna_api:nodes(),
-    Node = ?TEST_NODE,
+    Node = ?TEST_NODE(Host),
     Cookie = cookie,
     %% Try removing a unknown node:
     {error, no_such_node} = goanna_api:remove_node('fake@nohost'),
     {ok, GoannaNodePid} =
-        goanna_api:add_node(Node, cookie, tcpip_port),
+        goanna_api:add_node(Node, Cookie, tcpip_port),
     ?assert(is_pid(GoannaNodePid)),
     % timer:sleep(1),
     ?assertEqual(ok, wait_for_node({Node,Cookie,tcpip_port}, 100, 25)),
@@ -119,8 +137,9 @@ remove_node_validation() ->
     [] = goanna_api:nodes().
 
 update_default_trace_options() ->
+    {ok, Host} = inet:gethostname(),
     [] = goanna_api:nodes(),
-    Node = ?TEST_NODE,
+    Node = ?TEST_NODE(Host),
     Cookie = cookie,
     GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
@@ -183,6 +202,7 @@ update_default_trace_options() ->
       trace_max_time := false} = GoannaState6.
 
 update_default_trace_options_validation() ->
+    {ok, Host} = inet:gethostname(),
     %% try setting, when there are no nodes
     ok = goanna_api:update_default_trace_options([]),
     %% try setting, some invalid data
@@ -191,7 +211,7 @@ update_default_trace_options_validation() ->
     {error, badarg} = goanna_api:update_default_trace_options(222.22),
     {error, badarg} = goanna_api:update_default_trace_options({blee, blaa}),
     [] = goanna_api:nodes(),
-    Node = ?TEST_NODE,
+    Node = ?TEST_NODE(Host),
     Cookie = cookie,
     GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
     {ok, GoannaNodePid} =
@@ -223,8 +243,9 @@ update_default_trace_options_validation() ->
     ).
 
 set_data_retrival_method() ->
+    {ok, Host} = inet:gethostname(),
     [] = goanna_api:nodes(),
-    Node = ?TEST_NODE,
+    Node = ?TEST_NODE(Host),
     Cookie = cookie,
     GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
@@ -253,8 +274,9 @@ set_data_retrival_method() ->
     #{ data_retrival_method := {push, 1000, ?MODULE, 100} } = GoannaState3.
 
 set_data_retrival_method_validation() ->
+    {ok, Host} = inet:gethostname(),
     [] = goanna_api:nodes(),
-    Node = ?TEST_NODE,
+    Node = ?TEST_NODE(Host),
     Cookie = cookie,
     _GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
@@ -270,8 +292,9 @@ set_data_retrival_method_validation() ->
     {error, badarg} = goanna_api:set_data_retrival_method({push, bla}).
 
 trace() ->
+    {ok, Host} = inet:gethostname(),
     [] = goanna_api:nodes(),
-    Node = ?TEST_NODE,
+    Node = ?TEST_NODE(Host),
     Cookie = cookie,
     GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
@@ -297,8 +320,9 @@ trace() ->
     ?assertEqual([], goanna_api:pull_all_traces()).
 
 trace_validation() ->
+    {ok, Host} = inet:gethostname(),
     [] = goanna_api:nodes(),
-    Node = ?TEST_NODE,
+    Node = ?TEST_NODE(Host),
     Cookie = cookie,
     _GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
@@ -316,8 +340,9 @@ trace_validation() ->
     {error, badarg} = goanna_api:trace(bla, bla, bla).
 
 stop_trace() ->
+    {ok, Host} = inet:gethostname(),
     [] = goanna_api:nodes(),
-    Node = ?TEST_NODE,
+    Node = ?TEST_NODE(Host),
     Cookie = cookie,
     GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
@@ -370,9 +395,10 @@ stop_trace() ->
     ?assertEqual([], goanna_api:pull_all_traces()).
 
 reached_max_stop_trace_time() ->
+    {ok, Host} = inet:gethostname(),
     [] = goanna_api:nodes(),
     ?assertEqual([], goanna_api:list_active_traces()),
-    Node = ?TEST_NODE,
+    Node = ?TEST_NODE(Host),
     Cookie = cookie,
     _GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
@@ -389,6 +415,7 @@ reached_max_stop_trace_time() ->
     ?assertEqual([], goanna_api:list_active_traces()).
 
 reached_max_stop_trace_messages() ->
+    {ok, Host} = inet:gethostname(),
     % trace([
     %        %goanna_api,
     %        % goanna_db
@@ -409,7 +436,7 @@ reached_max_stop_trace_messages() ->
 
     [] = goanna_api:nodes(),
     ?assertEqual([], goanna_api:list_active_traces()),
-    Node = ?TEST_NODE,
+    Node = ?TEST_NODE(Host),
     Cookie = cookie,
     _GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
@@ -442,8 +469,9 @@ reached_max_stop_trace_messages() ->
     ?assertEqual([], goanna_api:list_active_traces()).
 
 list_active_traces() ->
+    {ok, Host} = inet:gethostname(),
     [] = goanna_api:nodes(),
-    Node = ?TEST_NODE,
+    Node = ?TEST_NODE(Host),
     Cookie = cookie,
     _GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
 
@@ -486,92 +514,11 @@ list_active_traces() ->
 
 %%------------------------------------------------------------------------
 
-setup() ->
-    error_logger:tty(false),
-    'goanna_eunit_test@localhost' = make_distrib("goanna_eunit_test@localhost", shortnames),
-    ok = do_slave_start(),
-    {ok,_} = goanna_api:start(),
-    ok.
-
--spec make_distrib( NodeName::string()|atom(), NodeType::shortnames | longnames) ->
-    {ok, ActualNodeName::atom} | {error, Reason::term()}.
-make_distrib(NodeName, NodeType) when is_list(NodeName) ->
-    make_distrib(erlang:list_to_atom(NodeName), NodeType);
-make_distrib(NodeName, NodeType) ->
-    case node() of
-        'nonode@nohost' ->
-            [] = os:cmd("epmd -daemon"),
-            case net_kernel:start([NodeName, NodeType]) of
-                {ok, _Pid} ->
-                    node()
-            end;
-        CurrNode ->
-            CurrNode
-    end.
-
-do_slave_start() ->
-    case os:cmd("ps aux | grep \"sname "++atom_to_list(?TEST_NODE)++"\" | grep -v grep | awk '{ print $2 }'") of
-        [] ->
-            ok;
-        PidString ->
-            [] = os:cmd("kill -9 "++(PidString--"\n")),
-            [] = os:cmd("ps aux | grep \"sname "++atom_to_list(?TEST_NODE)++"\" | grep -v grep | awk '{ print $2 }'")
-    end,
-    [] = os:cmd("erl -sname "++atom_to_list(?TEST_NODE)++" -pa _build/default/lib/goanna/ebin -setcookie cookie -detached -noinput -noshell"),
-    ok.
-
-cleanup(ok) ->
-    timer:sleep(1000),
-    [ ok = goanna_api:remove_node(NodeName) || {NodeName,_Cookie,_Type} <- goanna_api:nodes() ],
-    ok = net_kernel:stop(),
-    [ ok = application:stop(App) ||
-        {App,_ErtsVsn,_Vsn}
-        <- application:which_applications(), App /= kernel andalso App /= stdlib
-    ],
-    case os:cmd("ps aux | grep \"sname "++atom_to_list(?TEST_NODE)++"\" | grep -v grep | awk '{ print $2 }'") of
-        [] ->
-            ok;
-        PidString ->
-            [] = os:cmd("kill -9 "++(PidString--"\n")),
-            [] = os:cmd("ps aux | grep \"sname "++atom_to_list(?TEST_NODE)++"\" | grep -v grep | awk '{ print $2 }'")
-    end.
-
 forward_init(_) ->
     ok.
 
 forward(_Node, _TraceMessage) ->
     ok.
-
-    %trace([
-    %   {goanna_db}
-    %]),
-
-    %trace([
-    %   {goanna_db,
-    %       [
-    %           lookup,
-    %           store,
-    %           delete_child_id_tracelist,
-    %           delete_child_id_trace_pattern
-    %       ]
-    %   }
-    %]),
-trace(L) ->
-    start_dbg(),
-    do_trace(L).
-
-do_trace(L) when is_list(L) ->
-    [ do_trace(I) || I <- L ];
-do_trace(M) when is_atom(M) ->
-    dbg:tpl(M, cx);
-do_trace({M, Functions}) when is_list(Functions) ->
-    [ do_trace({M, F}) || F <- Functions ];
-do_trace({M, Function}) when is_atom(Function) ->
-    dbg:tpl(M, Function, cx).
-
-start_dbg() ->
-    dbg:tracer(),
-    dbg:p(all, call).
 
 wait_for_node(WaitingForNode, _WaitTime, Attempts) when Attempts =< 0 ->
     {error, {node_not_found, WaitingForNode}};

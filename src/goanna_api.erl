@@ -1,5 +1,7 @@
 -module (goanna_api).
 
+-compile({no_auto_import,[nodes/0]}).
+
 %% Control Api
 -export([
     start/0, stop/0,
@@ -57,19 +59,18 @@ add_node(Node, Cookie) when is_atom(Node), is_atom(Cookie) ->
 
 add_node(Node, Cookie, Type) when Type =:= tcpip_port orelse
                                   Type =:= file ->
-    case
-        hawk:add_node(Node, Cookie,
-            goanna_connect_callbacks(Node, Cookie, Type),
-            goanna_disconnect_callbacks(Node)
-        )
-    of
-        {error,{already_started,Pid}} ->
-            {ok,updated} = hawk:remove_connect_callback(Node, goanna_connect),
-            {ok,updated} = hawk:remove_disconnect_callback(Node, goanna_disconnect),
+    case hawk:node_exists(Node) of
+        false ->
+            {ok, _Pid} =
+                hawk:add_node(Node, Cookie,
+                    goanna_connect_callbacks(Node, Cookie, Type),
+                    goanna_disconnect_callbacks(Node)
+                );
+        {ok, Pid, _CallbackNames} ->
+            {ok, updated} = hawk:remove_connect_callback(Node, goanna_connect),
+            {ok, updated} = hawk:remove_disconnect_callback(Node, goanna_disconnect),
             io:format("removed old callbacks...~n", []),
-            {ok,updated} = add_node_callbacks(Node, Cookie, Type),
-            {ok, Pid};
-        {ok, Pid} ->
+            {ok, updated} = add_node_callbacks(Node, Cookie, Type),
             {ok, Pid}
     end;
 add_node(_, _, _) ->
@@ -77,7 +78,7 @@ add_node(_, _, _) ->
 
 add_node_callbacks(Node, Cookie) ->
     add_node_callbacks(Node, Cookie, tcpip_port).
-    
+
 add_node_callbacks(Node, Cookie, Type) ->
     % Maybe check if they are not already there...
     % {ok, _Pid, _Callbacks} = hawk:node_exists(Node),
@@ -87,10 +88,12 @@ add_node_callbacks(Node, Cookie, Type) ->
     {ok,updated} = hawk:add_disconnect_callback(Node, {DN,DF}).
 
 goanna_connect_callbacks(Node, Cookie, Type) ->
-    [{goanna_connect, fun() -> {ok,_}=goanna_node_sup:start_child(Node, Cookie, Type) end}].
+    [{goanna_connect, fun() ->
+        {ok,_}=goanna_node_sup:start_child(Node, Cookie, Type) end}].
 
 goanna_disconnect_callbacks(Node) ->
-    [{goanna_disconnect, fun() -> ok=goanna_node_sup:delete_child(Node) end}].
+    [{goanna_disconnect, fun() ->
+        ok=goanna_node_sup:delete_child(Node) end}].
 
 -spec remove_node(node()) -> ok | {error, no_such_node}.
 remove_node(Node) when is_atom(Node) ->

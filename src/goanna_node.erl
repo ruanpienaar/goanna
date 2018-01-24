@@ -219,16 +219,16 @@ loop(#{
             Reply ! ok,
             dbg_trace_steps(NewState);
         {'EXIT', TraceCLientPid, _Reason} ->
-            % io:format("loop receive -> ~s~n", ["{'EXIT', TraceCLientPid, normal} ->"]),
-            % io:format("Received exit from TraceCLientPid ~n"),
+            %io:format("loop receive -> ~s~n", ["{'EXIT', TraceCLientPid, normal} ->"]),
+            %io:format("Received exit from TraceCLientPid ~n"),
             State2 = setup_trace_pid(State),
             loop(State2);
         {'EXIT', PrevTraceCLientPid, _Reason} ->
-            % io:format("loop receive -> ~s~n", ["{'EXIT', PrevTraceCLientPid, normal} ->"]),
-            % io:format("Received exit from PrevTraceCLientPid ~n"),
+            %io:format("loop receive -> ~s~n", ["{'EXIT', PrevTraceCLientPid, normal} ->"]),
+            %io:format("Received exit from PrevTraceCLientPid ~n"),
             loop(State);
         {'EXIT', FromPid, shutdown} ->
-            % io:format("loop receive -> ~s~n", ["{'EXIT', FromPid, shutdown} ->"]),
+            %io:format("loop receive -> ~s~n", ["{'EXIT', FromPid, shutdown} ->"]),
             case whereis(goanna_node_sup) of
                 FromPid ->
                     % io:format("goanna node sup asked to shutdown ~n"),
@@ -238,7 +238,7 @@ loop(#{
                     loop(State)
             end;
         {system, From, _Msg = get_state} ->
-            gen:reply(From, State),
+            {_, _} = gen:reply(From, State),
             loop(State);
         {system, From, _Msg = get_status} ->
             SysState = running,
@@ -246,7 +246,7 @@ loop(#{
             Mod = ?MODULE,
             Name = ChildId,
             % FromPid ! {status, self(), {module, ?MODULE}, [PDict, SysState, Parent, _Debug=false, _Misc=false]},
-            gen:reply(From, get_status(SysState, Parent, Mod, _Debug=false, _Misc=[Name, State, Mod, undefined, undefined])),
+            {_, _} = gen:reply(From, get_status(SysState, Parent, Mod, _Debug=false, _Misc=[Name, State, Mod, undefined, undefined])),
             loop(State);
         Any ->
             io:format("UNEXPECTED ~p ~p loop recv : ~p~n", [self(), erlang:process_info(self(), registered_name), Any]),
