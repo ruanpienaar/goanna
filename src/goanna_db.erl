@@ -13,26 +13,31 @@
           truncate_traces/1,
           pull/1,
           pull/2,
-          push/3
+          push/3,
+          
+          
+          take/2
 ]).
 
 -type cookie() :: atom().
 -type type() :: tcpip_port | file.
 -type node_obj() :: {node(), cookie(), type()}.
 
+-ifdef(ETS_TAKE).
 -define(ETS_TAKE(Tbl, Id), ets:take(Tbl, Id)).
--define(ETS_LOOKUP_DELETE(), 
+-else.
+-define(ETS_TAKE(Tbl, Id), 
     begin 
         case ets:lookup(Tbl, Id) of
             [] ->
-                ok;
+                [];
             [V] ->
                 true = ets:delete(Tbl, Id),
                 [V]
         end
     end
 ).
-
+-endif.
 
 %% API
 -spec init() -> relay_tcpip_allocated_ports.
@@ -110,13 +115,16 @@ truncate_tracelist([]) ->
 truncate_traces(ChildId) ->
     true = ets:delete_all_objects(ChildId).
 
+take(Tbl, Id) ->
+    ?ETS_TAKE(Tbl, Id).
+
 -spec pull(atom()) -> list().
 pull(ChildId) ->
     case ets:first(ChildId) of
         '$end_of_table' ->
             [];
         Key ->
-            ets:take(ChildId, Key)
+            ?ETS_TAKE(ChildId, Key)
     end.
 
 -spec pull(atom(), non_neg_integer()) -> list().
@@ -132,7 +140,7 @@ pull(_ChildId, 0, _Key, R) ->
     lists:reverse(R);
 pull(ChildId, Amount, Key, R) when Amount > 0 ->
     NextKey = ets:next(ChildId, Key),
-    [E] = ets:take(ChildId, Key),
+    [E] = ?ETS_TAKE(ChildId, Key),
     pull(ChildId, Amount-1, NextKey, [E|R]).
 
 -spec push(term(), atom(), non_neg_integer()) -> ok.
@@ -146,7 +154,7 @@ push(_ChildId, _Mod, 0, _) ->
     ok;
 push(ChildId, Mod, Amount, Key) when Amount > 0 ->
     NextKey = ets:next(ChildId, Key),
-    [E] = ets:take(ChildId, Key),
+    [E] = ?ETS_TAKE(ChildId, Key),
     ok = Mod:forward(ChildId, E),
     push(ChildId, Mod, Amount-1, NextKey).
 
