@@ -25,6 +25,11 @@ Get It and compile it
 $ git clone https://github.com/ruanpienaar/goanna && cd goanna && make
 ```
 
+### !Important
+ets:take is not present in erlang 17.
+remove the macro 'ETS_TAKE' from rebar.config if you're on 17, and
+recompile.
+
 ### Description
 Goanna is a small library built on top of dbg, primarily for convenience.
 
