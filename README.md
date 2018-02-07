@@ -20,6 +20,13 @@
                                                '\,        ~-_'''"
 ```
 ## Getting started
+
+#### Docker container
+```
+docker pull ruanpienaar/goanna
+```
+
+#### From Source
 Get It and compile it
 ```
 $ git clone https://github.com/ruanpienaar/goanna && cd goanna && make
@@ -72,8 +79,8 @@ Tracing Example:
 
 You can write your own trace entry handler callback module. Just follow the goanna_forward_callback_mod
 behaviour convention, and do whatever you like with trace entries.
-There are examples in src/, goanna_forward_shell,
-goanna_forward_os_io, goanna_forward_file. Choose your forward module and have data_retrival_method set to push as explained in the sys.config below.
+There are examples in src/, goanna_forward_shell and goanna_forward_file. 
+Choose your forward module and have data_retrival_method set to push as explained in the sys.config below.
 
 ### Sys.config options
 Goanna features a host of different config options to be set as defaults or can be adjust at runtime.
