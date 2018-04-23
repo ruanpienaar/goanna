@@ -14,7 +14,7 @@
 start(_StartType, _StartArgs) ->
     case goanna_sup:start_link() of
         {ok, SupPid} ->
-            goanna_db:init(),
+            ok = goanna_db:init(),
             %% Sys.config nodes being added below:
             ok = lists:foreach(fun({Node, Cookie}) ->
                 ChildId = goanna_node_sup:id(Node, Cookie),

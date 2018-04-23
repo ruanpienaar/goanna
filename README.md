@@ -33,7 +33,7 @@ $ git clone https://github.com/ruanpienaar/goanna && cd goanna && make
 ```
 
 ### !Important
-ets:take is not present in erlang 17.
+ets:take is not present in erlang 17 and lower.
 remove the macro 'ETS_TAKE' from rebar.config if you're on 17, and
 recompile.
 

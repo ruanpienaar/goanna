@@ -13,11 +13,14 @@
           truncate_traces/1,
           pull/1,
           pull/2,
-          push/3,
-          
-          
+          push/4,
           take/2
 ]).
+-ifdef(TEST).
+-export([
+    create_node_obj/3
+]).
+-endif.
 
 -type cookie() :: atom().
 -type type() :: tcpip_port | file.
@@ -26,8 +29,8 @@
 -ifdef(ETS_TAKE).
 -define(ETS_TAKE(Tbl, Id), ets:take(Tbl, Id)).
 -else.
--define(ETS_TAKE(Tbl, Id), 
-    begin 
+-define(ETS_TAKE(Tbl, Id),
+    begin
         case ets:lookup(Tbl, Id) of
             [] ->
                 [];
@@ -40,22 +43,28 @@
 -endif.
 
 %% API
--spec init() -> relay_tcpip_allocated_ports.
+-spec init() -> ok.
 init() ->
     nodelist =
         ets:new(nodelist, [public, set, named_table]),
     tracelist =
         ets:new(tracelist, [public, set, named_table]),
     relay_tcpip_allocated_ports =
-        ets:new(relay_tcpip_allocated_ports, [public, set, named_table]).
+        ets:new(relay_tcpip_allocated_ports, [public, set, named_table]),
+    ok.
 
 -spec init_node(list()) -> {ok, node_obj()}.
 init_node([Node, Cookie, Type, ChildId]) ->
-    NodeObj = {Node, Cookie, Type},
+    NodeObj = create_node_obj(Node, Cookie, Type),
     true = ets:insert(nodelist, NodeObj),
     undefined = ets:info(ChildId, size),
-    ChildId = ets:new(ChildId,[public, ordered_set, named_table, {write_concurrency, true}, {read_concurrency, true}]),
+    ChildId = ets:new(ChildId, [public, ordered_set, named_table, {read_concurrency, true}]),
     {ok, NodeObj}.
+
+create_node_obj(Node, Cookie, Type) when is_atom(Node) andalso
+                                         is_atom(Cookie) andalso
+                                         Type == tcpip_port ->
+    {Node, Cookie, Type}.
 
 -spec nodes() -> list().
 nodes() ->
@@ -143,18 +152,18 @@ pull(ChildId, Amount, Key, R) when Amount > 0 ->
     [E] = ?ETS_TAKE(ChildId, Key),
     pull(ChildId, Amount-1, NextKey, [E|R]).
 
--spec push(term(), atom(), non_neg_integer()) -> ok.
-push(ChildId, Mod, Amount) ->
-    push(ChildId, Mod, Amount, ets:first(ChildId)).
+-spec push(pid() | atom(), term(), atom(), non_neg_integer()) -> ok.
+push(PidOrName, ChildId, Mod, Amount) ->
+    push(PidOrName, ChildId, Mod, Amount, ets:first(ChildId)).
 
--spec push(term(), atom(), non_neg_integer(), '$end_of_table' | term()) -> ok.
-push(_ChildId, _Mod, _Amount, '$end_of_table') ->
+-spec push(pid() | atom(), term(), atom(), non_neg_integer(), '$end_of_table' | term()) -> ok.
+push(_PidOrName, _ChildId, _Mod, _Amount, '$end_of_table') ->
     ok;
-push(_ChildId, _Mod, 0, _) ->
+push(_PidOrName, _ChildId, _Mod, 0, _) ->
     ok;
-push(ChildId, Mod, Amount, Key) when Amount > 0 ->
+push(PidOrName, ChildId, Mod, Amount, Key) when Amount > 0 ->
     NextKey = ets:next(ChildId, Key),
-    [E] = ?ETS_TAKE(ChildId, Key),
-    ok = Mod:forward(ChildId, E),
-    push(ChildId, Mod, Amount-1, NextKey).
+    [{_,E}] = ?ETS_TAKE(ChildId, Key),
+    ok = Mod:forward(PidOrName, {ChildId, E}),
+    push(PidOrName, ChildId, Mod, Amount-1, NextKey).
 

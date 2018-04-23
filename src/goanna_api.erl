@@ -60,15 +60,15 @@ add_node(Node, Cookie) when is_atom(Node), is_atom(Cookie) ->
 add_node(Node, Cookie, Type) when Type =:= tcpip_port orelse
                                   Type =:= file ->
     case hawk:node_exists(Node) of
-        false ->
+        {error, no_such_node} ->
             {ok, _Pid} =
                 hawk:add_node(Node, Cookie,
                     goanna_connect_callbacks(Node, Cookie, Type),
                     goanna_disconnect_callbacks(Node)
                 );
         {ok, Pid, _CallbackNames} ->
-            {ok, updated} = hawk:remove_connect_callback(Node, goanna_connect),
-            {ok, updated} = hawk:remove_disconnect_callback(Node, goanna_disconnect),
+            {ok, {Pid, updated}} = hawk:remove_connect_callback(Node, goanna_connect),
+            {ok, {Pid, updated}} = hawk:remove_disconnect_callback(Node, goanna_disconnect),
             io:format("removed old callbacks...~n", []),
             {ok, updated} = add_node_callbacks(Node, Cookie, Type),
             {ok, Pid}

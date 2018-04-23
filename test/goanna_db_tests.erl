@@ -1,5 +1,5 @@
 -module(goanna_db_tests).
--include_lib("proper/include/proper.hrl").
+
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("goanna.hrl").
 
@@ -11,7 +11,7 @@ goanna_db_test_() ->
     {foreach,
      fun() ->
         ?assertEqual(
-            relay_tcpip_allocated_ports,
+            ok,
             goanna_db:init()
         ),
         ?assertMatch(
@@ -574,7 +574,7 @@ push() ->
 
     ?assertEqual(
         ok,
-        goanna_db:push(ChildId1, ?MODULE, 1)
+        goanna_db:push(self(), ChildId1, ?MODULE, 1)
     ),
 
     ?assertEqual(
@@ -585,7 +585,7 @@ push() ->
 
     ?assertEqual(
         ok,
-        goanna_db:push(ChildId1, ?MODULE, 2)
+        goanna_db:push(self(), ChildId1, ?MODULE, 2)
     ),
     ?assert(
         [] == ets:tab2list(ChildId1)
@@ -596,44 +596,3 @@ push() ->
 forward(_ChildId, _Entry) ->
     ok.
 
-%% Proper Tests
-
-prop_goanna_db_all() ->
-    ?FORALL(
-        R,
-        atom(),
-        valid_response(goanna_db:all(R))
-    ).
-
-valid_response({error, unknown_table}) ->
-    true;
-valid_response(R) when is_list(R) ->
-    true;
-valid_response(_) ->
-    false.
-
-prop_init_node() ->
-    % init goanna_db
-    goanna_db:init(),
-    ?FORALL(
-        Node,
-        atom(),
-        ?IMPLIES(valid_node(Node), setup(Node, {key, value}))
-    ).
-
-setup(Node, Trace) ->
-    % init the node,
-    Cookie = oreo,
-    ChildId = goanna_node_sup:id(Node, Cookie),
-    {ok, _} = goanna_db:init_node([Node, Cookie, tcpip_port, ChildId]),
-    % io:format("NODE ~p SIZE ... ~p~n", [Node, ets:info(ChildId, size)]),
-    % then store a trace pattern.
-    A = goanna_db:store_trace_pattern(ChildId, Trace, []),
-    ets:delete(ChildId),
-    A.
-
-valid_node(N) when N == '' orelse
-                   N == '?' ->
-    false;
-valid_node(_N) ->
-    true.
