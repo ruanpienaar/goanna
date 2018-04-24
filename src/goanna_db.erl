@@ -63,7 +63,8 @@ init_node([Node, Cookie, Type, ChildId]) ->
 
 create_node_obj(Node, Cookie, Type) when is_atom(Node) andalso
                                          is_atom(Cookie) andalso
-                                         Type == tcpip_port ->
+                                         (Type == tcpip_port orelse
+                                          Type == file) ->
     {Node, Cookie, Type}.
 
 -spec nodes() -> list().
