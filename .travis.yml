@@ -19,6 +19,8 @@ otp_release:
     - 20.0
     - 20.1
     - 20.2
+    - 20.3
+    - 21
 
 install:
   - wget https://s3.amazonaws.com/rebar3/rebar3 && chmod +x rebar3
