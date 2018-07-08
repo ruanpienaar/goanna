@@ -20,13 +20,12 @@ otp_release:
     - 20.1
     - 20.2
     - 20.3
-    - 21.0
 
 install:
   - wget https://s3.amazonaws.com/rebar3/rebar3 && chmod +x rebar3
 
 script:
-  ./rebar3 xref && ./rebar3 proper && ./rebar3 eunit && ./rebar3 coveralls send
+  ./rebar3 xref && ./rebar3 proper && ./rebar3 eunit && ./rebar3 ct -c && ./rebar3 coveralls send
 
 env:
   global:

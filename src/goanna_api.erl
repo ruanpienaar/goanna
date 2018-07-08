@@ -70,7 +70,7 @@ add_node(Node, Cookie, Type) when Type =:= tcpip_port orelse
             {ok, {Pid, updated}} = hawk:remove_connect_callback(Node, goanna_connect),
             {ok, {Pid, updated}} = hawk:remove_disconnect_callback(Node, goanna_disconnect),
             io:format("removed old callbacks...~n", []),
-            {ok, updated} = add_node_callbacks(Node, Cookie, Type),
+            ok = add_node_callbacks(Node, Cookie, Type),
             {ok, Pid}
     end;
 add_node(_, _, _) ->
@@ -84,8 +84,9 @@ add_node_callbacks(Node, Cookie, Type) ->
     % {ok, _Pid, _Callbacks} = hawk:node_exists(Node),
     [{CN,CF}] = goanna_connect_callbacks(Node, Cookie, Type),
     [{DN,DF}] = goanna_disconnect_callbacks(Node),
-    {ok,updated} = hawk:add_connect_callback(Node, {CN,CF}),
-    {ok,updated} = hawk:add_disconnect_callback(Node, {DN,DF}).
+    {ok, {Pid, updated}} = hawk:add_connect_callback(Node, {CN,CF}),
+    {ok, {Pid, updated}} = hawk:add_disconnect_callback(Node, {DN,DF}),
+    ok.
 
 goanna_connect_callbacks(Node, Cookie, Type) ->
     [{goanna_connect, fun() ->
@@ -147,8 +148,8 @@ trace(Module) when is_atom(Module) ->
         %cluster_foreach_call({trace, [#trc_pattern{m=Module}]})
         cluster_foreach_call({trace, [{Module}]})
     catch
-        C:E ->
-            error_logger:error_report([{module,?MODULE},C,E,erlang:get_stacktrace()])
+        C:R ->
+            error_logger:error_report([{module,?MODULE},C,R])
     end;
 trace(_) ->
     {error, badarg}.

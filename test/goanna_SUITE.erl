@@ -73,10 +73,7 @@ groups() ->
 init_per_suite(Config) ->
     {ok, _} = erlang_testing:start_distrib(new_node_name(), shortnames),
     ok = application:load(goanna),
-    % ok = application:set_env(goanna, default_trace_options, [
-    %     {time, false},
-    %     {messages, false}
-    % ]),
+    ok = application:set_env(goanna, default_trace_options, []),
     {ok, DepApps} = application:ensure_all_started(goanna),
     [{dep_apps, DepApps}|Config].
 
@@ -101,30 +98,42 @@ end_per_group(_GroupName, _Config) ->
     ok.
 
 % Configuration function for a testcase, executed before each test case. (Optional)
-init_per_testcase(_TestCase, Config) ->
+init_per_testcase(TestCase, Config) ->
+
+    case TestCase of
+        update_default_trace_options ->
+            % {ok, _} = dbg:tracer(),
+            % {ok, _} = dbg:p(all, call),
+            % {ok, _} = dbg:tpl(goanna_api, cx);
+            ok;
+        _ ->
+            ok
+    end,
+
     ok = application:set_env(hawk, connection_retries, 600),
     ok = application:set_env(hawk, conn_retry_wait, 100),
     node_table = ets:new(node_table, [public, named_table, set]),
     {ok, Host} = inet:gethostname(),
     N1 = new_node_name(),
-    N2 = new_node_name(),
-    N3 = new_node_name(),
-    N4 = new_node_name(),
-    N5 = new_node_name(),
+    % N2 = new_node_name(),
+    % N3 = new_node_name(),
+    % N4 = new_node_name(),
+    % N5 = new_node_name(),
     Slaves = erlang_testing:slaves_setup([
         {Host, N1}
-       ,{Host, N2}
-       ,{Host, N3}
-       ,{Host, N4}
-       ,{Host, N5}
+       % ,{Host, N2}
+       % ,{Host, N3}
+       % ,{Host, N4}
+       % ,{Host, N5}
     ]),
     ct:log("init_per_testcase Slaves -> ~p~n", [Slaves]),
     [{slaves, Slaves} | Config].
 
 % Configuration function for a testcase, executed after each test case. (Optional)
 end_per_testcase(_TestCase, Config) ->
+    ok = dbg:stop_clear(),
     true = ets:delete(node_table),
-    lists:foreach(fun({N,_C,_T}) ->
+    ok = lists:foreach(fun({N,_C,_T}) ->
         ct:log("Remove node ~p~n", [N]),
         goanna_api:remove_node(N)
     end, goanna_api:nodes()),
@@ -183,14 +192,22 @@ update_default_trace_options(Config) ->
     end,
     % Check that node is added
     unit_testing:wait_for_match(100, F, [{Node,Cookie,tcpip_port}]),
-
+    ct:pal("1"),
     GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
-
+    ct:pal("2"),
     %% Then get the default values
-    undefined = application:get_env(goanna, default_trace_options),
+    {ok, []} = application:get_env(goanna, default_trace_options),
+    ct:pal("3"),
+
     GoannaState = sys:get_state(GoannaNode_Cookie),
+
+    ct:pal("4"),
+
     #{trace_max_msg := false,
       trace_max_time := false} = GoannaState,
+
+    ct:pal("5"),
+
     % #?GOANNA_STATE{ trace_max_msg=false,
     %                 trace_max_time=false } = GoannaState,
     % ?assertMatch(
@@ -202,9 +219,13 @@ update_default_trace_options(Config) ->
     %% Change the default values, Then Check the newly set values
     ok = goanna_api:update_default_trace_options([{time, 1000}]),
 
+    ct:pal("6"),
 
     % Keep calling to check if the call was made
     {ok,[{time, 1000}]} = application:get_env(goanna, default_trace_options),
+
+    ct:pal("7"),
+
     GoannaState2 = sys:get_state(GoannaNode_Cookie),
     % #?GOANNA_STATE{ trace_max_msg=false,
     %                 trace_max_time=1000 } = GoannaState2,

@@ -291,9 +291,9 @@ tcpip_port_trace_steps(Node, Cookie) ->
                 Error
         end
     catch
-        C:E ->
-            io:format("was going to tcpip_port_trace_steps Encountered problem~n~p ~p ~p~n",
-                [C, E, erlang:get_stacktrace()])
+        C:R ->
+            io:format("was going to tcpip_port_trace_steps Encountered problem~n~p ~p~n",
+                [C, R])
     end.
 
 % -spec file_port_trace_steps(atom(), atom())
