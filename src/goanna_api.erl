@@ -84,9 +84,18 @@ add_node_callbacks(Node, Cookie, Type) ->
     % {ok, _Pid, _Callbacks} = hawk:node_exists(Node),
     [{CN,CF}] = goanna_connect_callbacks(Node, Cookie, Type),
     [{DN,DF}] = goanna_disconnect_callbacks(Node),
-    {ok, {Pid, updated}} = hawk:add_connect_callback(Node, {CN,CF}),
-    {ok, {Pid, updated}} = hawk:add_disconnect_callback(Node, {DN,DF}),
-    ok.
+    case hawk:add_connect_callback(Node, {CN,CF}) of
+        {ok, {_,duplicate}} ->
+            ok;
+        {ok, {_, updated}} ->
+            ok
+    end,
+    case hawk:add_disconnect_callback(Node, {DN,DF}) of
+        {ok, {_,duplicate}} ->
+            ok;
+        {ok, {_, updated}} ->
+            ok
+    end.
 
 goanna_connect_callbacks(Node, Cookie, Type) ->
     [{goanna_connect, fun() ->
@@ -96,6 +105,9 @@ goanna_disconnect_callbacks(Node) ->
     [{goanna_disconnect, fun() ->
         ok=goanna_node_sup:delete_child(Node) end}].
 
+% @doc removes from goanna and hawk, by using the disconnect
+% callbacks
+% @doc
 -spec remove_node(node()) -> ok | {error, no_such_node}.
 remove_node(Node) when is_atom(Node) ->
     hawk:remove_node(Node);
@@ -103,16 +115,31 @@ remove_node(_) ->
     {error, badarg}.
 
 %%TODO: test
+% @doc only removes the goanna node
+% @doc
 -spec remove_goanna_node(node()) -> ok | {error, no_such_node}.
 remove_goanna_node(Node) ->
-    remove_goanna_callbacks(Node),
-    ok=goanna_node_sup:delete_child(Node).
+    case remove_goanna_callbacks(Node) of
+        true ->
+            ok;
+        false ->
+            ok
+    end,
+    goanna_node_sup:delete_child(Node).
 
 -spec remove_goanna_callbacks(node()) -> boolean().
 remove_goanna_callbacks(Node) ->
-    hawk:remove_connect_callback(Node, goanna_connect)=={ok,updated}
-    andalso
-    hawk:remove_disconnect_callback(Node, goanna_disconnect)=={ok,updated}.
+    case
+        {hawk:remove_connect_callback(Node, goanna_connect),
+         hawk:remove_disconnect_callback(Node, goanna_disconnect)
+        }
+    of
+        {{ok, {Pid, updated}}, {ok, {Pid, updated}}
+        } ->
+            true;
+        _ ->
+            false
+    end.
 
 -spec update_default_trace_options(list(tuple())) -> ok.
 update_default_trace_options(Opts) when is_list(Opts) ->

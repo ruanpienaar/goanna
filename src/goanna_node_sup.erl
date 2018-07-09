@@ -36,10 +36,14 @@ start_child(Node, Cookie, Type) ->
 
 -spec delete_child(node()) -> ok | {error, no_such_node}.
 delete_child(Node) ->
-    [{Node, Cookie,_}] = goanna_db:lookup([nodelist, Node]),
-    ChildId = id(Node,Cookie),
-    ok = supervisor:terminate_child(?MODULE, ChildId),
-    ok = supervisor:delete_child(?MODULE, ChildId).
+    case goanna_db:lookup([nodelist, Node]) of
+        [{Node, Cookie,_}] ->
+            ChildId = id(Node,Cookie),
+            ok = supervisor:terminate_child(?MODULE, ChildId),
+            ok = supervisor:delete_child(?MODULE, ChildId);
+        [] ->
+            {error, no_such_node}
+    end.
 
 %% ===================================================================
 %% Supervisor callbacks

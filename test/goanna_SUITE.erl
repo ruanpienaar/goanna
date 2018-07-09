@@ -15,7 +15,10 @@
 % Success Tests
 -export([
     add_node/1,
+    add_node_callbacks/1,
     remove_node/1,
+    remove_goanna_node/1,
+    remove_goanna_callbacks/1,
     update_default_trace_options/1
 ]).
 % Failure tests
@@ -33,7 +36,10 @@ all() ->
 all_success() ->
     [
         add_node,
+        add_node_callbacks,
         remove_node,
+        remove_goanna_node,
+        remove_goanna_callbacks,
         update_default_trace_options
     ].
 
@@ -135,8 +141,13 @@ end_per_testcase(_TestCase, Config) ->
     true = ets:delete(node_table),
     ok = lists:foreach(fun({N,_C,_T}) ->
         ct:log("Remove node ~p~n", [N]),
-        goanna_api:remove_node(N)
+        goanna_api:remove_node(N),
+        goanna_api:remove_goanna_node(N)
     end, goanna_api:nodes()),
+    ok = lists:foreach(fun(HN) ->
+        ok = hawk:remove_node(HN)
+    end, hawk:nodes()),
+    ct:log("GOANNA API NODES ~p ~n", [goanna_api:nodes()]),
     [] = goanna_api:nodes(),
     {slaves, Slaves} = lists:keyfind(slaves, 1, Config),
     true = erlang_testing:cleanup_slaves(Slaves).
@@ -157,6 +168,23 @@ add_node(Config) ->
     % Check that node is added
     unit_testing:wait_for_match(100, F, [{Node,Cookie,tcpip_port}]).
 
+add_node_callbacks(Config) ->
+    {slaves, [Slave|_]} = lists:keyfind(slaves, 1, Config),
+    Cookie = erlang:get_cookie(),
+    Node = Slave,
+    [] = goanna_api:nodes(),
+    % Add node
+    {ok, GoannaNodePid} =
+        goanna_api:add_node(Node, Cookie, tcpip_port),
+    true = is_pid(GoannaNodePid),
+    F = fun() ->
+        goanna_api:nodes()
+    end,
+    % Check that node is added
+    unit_testing:wait_for_match(100, F, [{Node,Cookie,tcpip_port}]),
+    % Add goanna node callbacks
+    ok = goanna_api:add_node_callbacks(Node, Cookie, tcpip_port).
+
 remove_node(Config) ->
     {slaves, [Slave|_]} = lists:keyfind(slaves, 1, Config),
     Cookie = erlang:get_cookie(),
@@ -172,11 +200,62 @@ remove_node(Config) ->
     % Check that node is added
     unit_testing:wait_for_match(100, F, [{Node,Cookie,tcpip_port}]),
 
+    % Remove the hawk node - which will remove the goanna node
     ok = goanna_api:remove_node(Node),
     F2 = fun() ->
         lists:member(Node, goanna_api:nodes())
     end,
     unit_testing:wait_for_match(100, F2, false).
+
+remove_goanna_node(Config) ->
+    {slaves, [Slave|_]} = lists:keyfind(slaves, 1, Config),
+    Cookie = erlang:get_cookie(),
+    Node = Slave,
+    [] = goanna_api:nodes(),
+    % Add node
+    {ok, GoannaNodePid} =
+        goanna_api:add_node(Node, Cookie, tcpip_port),
+    true = is_pid(GoannaNodePid),
+    F = fun() ->
+        goanna_api:nodes()
+    end,
+    % Check that node is added
+    unit_testing:wait_for_match(100, F, [{Node,Cookie,tcpip_port}]),
+
+    % Remove goanna node only
+    ok = goanna_api:remove_goanna_node(Node),
+    F2 = fun() ->
+        lists:member(Node, goanna_api:nodes())
+    end,
+    unit_testing:wait_for_match(100, F2, false).
+
+remove_goanna_callbacks(Config) ->
+    {slaves, [Slave|_]} = lists:keyfind(slaves, 1, Config),
+    Cookie = erlang:get_cookie(),
+    Node = Slave,
+    [] = goanna_api:nodes(),
+    % Add node
+    {ok, GoannaNodePid} =
+        goanna_api:add_node(Node, Cookie, tcpip_port),
+    true = is_pid(GoannaNodePid),
+    F = fun() ->
+        goanna_api:nodes()
+    end,
+    % Check that node is added
+    unit_testing:wait_for_match(100, F, [{Node,Cookie,tcpip_port}]),
+
+    % remove goanna callbacks from hawk
+    true = goanna_api:remove_goanna_callbacks(Node),
+    F2 = fun() ->
+        case hawk:node_exists(Node) of
+            {ok, _, []} ->
+                true;
+            _ ->
+                false
+        end
+    end,
+    unit_testing:wait_for_match(100, F2, false).
+
 
 update_default_trace_options(Config) ->
     {slaves, [Slave|_]} = lists:keyfind(slaves, 1, Config),

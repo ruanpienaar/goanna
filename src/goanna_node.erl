@@ -76,7 +76,7 @@ check_and_init_forward_mod(ChildId, Mod) ->
                       "missing required behaviour functions...Removing ChildId ~p...",
                       [?MODULE, Mod, ChildId]),
             [Node, _Cookie] = goanna_node_sup:to_node(ChildId),
-            goanna_api:remove_node(Node)
+            goanna_api:remove_goanna_node(Node)
     end.
 
 %% -----------------------------------------------------------------------------------
