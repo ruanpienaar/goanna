@@ -39,8 +39,12 @@ delete_child(Node) ->
     case goanna_db:lookup([nodelist, Node]) of
         [{Node, Cookie,_}] ->
             ChildId = id(Node,Cookie),
-            ok = supervisor:terminate_child(?MODULE, ChildId),
-            ok = supervisor:delete_child(?MODULE, ChildId);
+            case supervisor:terminate_child(?MODULE, ChildId) of
+                ok ->
+                    ok = supervisor:delete_child(?MODULE, ChildId);
+                {error,not_found} ->
+                    ok
+            end;
         [] ->
             {error, no_such_node}
     end.
