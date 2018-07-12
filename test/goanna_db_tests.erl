@@ -477,7 +477,7 @@ pull1() ->
     ),
 
     ?assertEqual(
-        [{{1515,12494,391750}, {trace_ts,self(),label,info,{1515,12494,391750}}}],
+        [{{1515,12494,391750}, ChildId1, {trace_ts,self(),label,info,{1515,12494,391750}}}],
         goanna_db:pull(ChildId1)
     ),
 
@@ -521,12 +521,12 @@ pull2() ->
     ),
 
     ?assertEqual(
-        [{{1515,12494,391750},{trace_ts,self(),label,info,{1515,12494,391750}}}],
+        [{{1515,12494,391750},ChildId1,{trace_ts,self(),label,info,{1515,12494,391750}}}],
         goanna_db:pull(ChildId1, 1)
     ),
     ?assertEqual(
-        [{{1516,12494,391750},{trace_ts,self(),label2,info2,{1516,12494,391750}}},
-         {{1517,12494,391750},{trace_ts,self(),label3,info3,{1517,12494,391750}}}],
+        [{{1516,12494,391750},ChildId1,{trace_ts,self(),label2,info2,{1516,12494,391750}}},
+         {{1517,12494,391750},ChildId1,{trace_ts,self(),label3,info3,{1517,12494,391750}}}],
         goanna_db:pull(ChildId1, 2)
     ),
 
@@ -578,8 +578,8 @@ push() ->
     ),
 
     ?assertEqual(
-        [{{1516,12494,391750},{trace_ts,self(),label2,info2,{1516,12494,391750}}},
-         {{1517,12494,391750},{trace_ts,self(),label3,info3,{1517,12494,391750}}}],
+        [{{1516,12494,391750},ChildId1,{trace_ts,self(),label2,info2,{1516,12494,391750}}},
+         {{1517,12494,391750},ChildId1,{trace_ts,self(),label3,info3,{1517,12494,391750}}}],
         goanna_db:pull(ChildId1, 2)
     ),
 

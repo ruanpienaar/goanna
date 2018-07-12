@@ -140,15 +140,16 @@ end_per_testcase(_TestCase, Config) ->
     ok = dbg:stop_clear(),
     true = ets:delete(node_table),
     ok = lists:foreach(fun({N,_C,_T}) ->
-        ct:log("Remove node ~p~n", [N]),
         goanna_api:remove_node(N),
         goanna_api:remove_goanna_node(N)
     end, goanna_api:nodes()),
     ok = lists:foreach(fun(HN) ->
         ok = hawk:remove_node(HN)
     end, hawk:nodes()),
-    ct:log("GOANNA API NODES ~p ~n", [goanna_api:nodes()]),
-    [] = goanna_api:nodes(),
+    F = fun() ->
+        goanna_api:nodes() == []
+    end,
+    unit_testing:wait_for_match(100, F, true),
     {slaves, Slaves} = lists:keyfind(slaves, 1, Config),
     true = erlang_testing:cleanup_slaves(Slaves).
 

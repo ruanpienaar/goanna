@@ -13,8 +13,7 @@
           truncate_traces/1,
           pull/1,
           pull/2,
-          push/4,
-          take/2
+          push/4
 ]).
 -ifdef(TEST).
 -export([
@@ -75,9 +74,9 @@ nodes() ->
                                    {trace_ts, any(), any(), any(), any(), any()})
         -> true | {error, term()}.
 store_trace(ChildId, {trace_ts,P,L,I,T}) when is_atom(ChildId) ->
-    true = ets:insert(ChildId, {T, {trace_ts,P,L,I,T}});
+    true = ets:insert(ChildId, {T, ChildId, {trace_ts,P,L,I,T}});
 store_trace(ChildId, {trace_ts,P,L,I,E,T}) when is_atom(ChildId) ->
-    true = ets:insert(ChildId, {T, {trace_ts,P,L,I,E,T}}).
+    true = ets:insert(ChildId, {T, ChildId, {trace_ts,P,L,I,E,T}}).
 
 -spec store_trace_pattern(atom() | list(), list(), list()) -> true | {error, term()}.
 store_trace_pattern(ChildId, TrcPattern, Opts) ->
@@ -125,9 +124,6 @@ truncate_tracelist([]) ->
 truncate_traces(ChildId) ->
     true = ets:delete_all_objects(ChildId).
 
-take(Tbl, Id) ->
-    ?ETS_TAKE(Tbl, Id).
-
 -spec pull(atom()) -> list().
 pull(ChildId) ->
     case ets:first(ChildId) of
@@ -164,7 +160,7 @@ push(_PidOrName, _ChildId, _Mod, 0, _) ->
     ok;
 push(PidOrName, ChildId, Mod, Amount, Key) when Amount > 0 ->
     NextKey = ets:next(ChildId, Key),
-    [{_,E}] = ?ETS_TAKE(ChildId, Key),
+    [{_,ChildId,E}] = ?ETS_TAKE(ChildId, Key),
     ok = Mod:forward(PidOrName, {ChildId, E}),
     push(PidOrName, ChildId, Mod, Amount-1, NextKey).
 

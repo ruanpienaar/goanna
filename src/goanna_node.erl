@@ -293,7 +293,8 @@ tcpip_port_trace_steps(Node, Cookie) ->
     catch
         C:R ->
             io:format("was going to tcpip_port_trace_steps Encountered problem~n~p ~p~n",
-                [C, R])
+                [C, R]),
+            exit(self())
     end.
 
 % -spec file_port_trace_steps(atom(), atom())
