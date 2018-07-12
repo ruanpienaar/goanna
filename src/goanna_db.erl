@@ -2,7 +2,7 @@
 -export ([init/0,
           init_node/1,
           nodes/0,
-          store_trace/2,
+          store_trace/3,
           store_trace_pattern/3,
           lookup/1,
           all/1,
@@ -70,13 +70,13 @@ create_node_obj(Node, Cookie, Type) when is_atom(Node) andalso
 nodes() ->
     all(nodelist).
 
--spec store_trace(atom() | list(), {trace_ts, any(), any(), any(), any()} |
-                                   {trace_ts, any(), any(), any(), any(), any()})
+-spec store_trace(atom() | list(), node(), {trace_ts, any(), any(), any(), any()} |
+                                           {trace_ts, any(), any(), any(), any(), any()})
         -> true | {error, term()}.
-store_trace(ChildId, {trace_ts,P,L,I,T}) when is_atom(ChildId) ->
-    true = ets:insert(ChildId, {T, ChildId, {trace_ts,P,L,I,T}});
-store_trace(ChildId, {trace_ts,P,L,I,E,T}) when is_atom(ChildId) ->
-    true = ets:insert(ChildId, {T, ChildId, {trace_ts,P,L,I,E,T}}).
+store_trace(ChildId, Node, {trace_ts,P,L,I,T}) when is_atom(ChildId) ->
+    true = ets:insert(ChildId, {T, Node, {trace_ts,P,L,I,T}});
+store_trace(ChildId, Node, {trace_ts,P,L,I,E,T}) when is_atom(ChildId) ->
+    true = ets:insert(ChildId, {T, Node, {trace_ts,P,L,I,E,T}}).
 
 -spec store_trace_pattern(atom() | list(), list(), list()) -> true | {error, term()}.
 store_trace_pattern(ChildId, TrcPattern, Opts) ->
@@ -160,7 +160,7 @@ push(_PidOrName, _ChildId, _Mod, 0, _) ->
     ok;
 push(PidOrName, ChildId, Mod, Amount, Key) when Amount > 0 ->
     NextKey = ets:next(ChildId, Key),
-    [{_,ChildId,E}] = ?ETS_TAKE(ChildId, Key),
-    ok = Mod:forward(PidOrName, {ChildId, E}),
+    [E] = ?ETS_TAKE(ChildId, Key),
+    ok = Mod:forward(PidOrName, E),
     push(PidOrName, ChildId, Mod, Amount-1, NextKey).
 

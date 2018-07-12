@@ -59,7 +59,7 @@
     {seq_trace, Label :: seq_trace_label(), SeqTraceInfo :: seq_trace_info(), ReportedTS :: calendar:timestamp()} |
     {drop, NumberOfDroppedItems :: non_neg_integer()}.
 
--type goanna_trace_tuple() :: {calendar:timestamp(), erlang_trace_data()}.
+-type goanna_trace_tuple() :: {calendar:timestamp(), node(), erlang_trace_data()}.
 
 -callback forward_init(ChildId :: atom()) -> {ok, pid() | atom()} | {error, term()}.
 -callback forward(Process :: pid() | atom(), Item :: goanna_trace_tuple()) -> ok.

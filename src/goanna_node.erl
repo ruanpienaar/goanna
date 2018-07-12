@@ -142,7 +142,7 @@ loop(#{ node := Node,
         {trace_item, _Trace} when not Tracing ->
             loop(State);
         {trace_item, Trace} when Tracing ->
-            true = goanna_db:store_trace(ChildId, Trace),
+            true = goanna_db:store_trace(ChildId, Node, Trace),
             loop(State#{ trace_msg_count => TMC+1 });
         {push_data, Mod, Amount} ->
             #{data_forward_process := DWP} = State,
@@ -279,7 +279,10 @@ tcpip_port_trace_steps(Node, Cookie) ->
                     {error, already_started} ->
                         ok;
                     {ok, RemoteDbgPid} ->
-                        ok
+                        ok;
+                    ERR ->
+                        io:format("Starting tracer on remote node failed ~p\n\n", [ERR]),
+                        exit(self())
                 end,
                 {ok,_MatchDesc} = dbg_p(Node),
                 {ok, Fun} = handler_fun(goanna_node_sup:id(Node, Cookie), tcpip_port),

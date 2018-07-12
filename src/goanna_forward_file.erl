@@ -54,8 +54,8 @@ forward_init(ChildId) ->
     end.
 
 -spec forward(Process :: pid() | atom(), goanna_forward_callback_mod:goanna_trace_tuple()) -> ok.
-forward(Process, {_, TraceItem}) ->
-    gen_server:cast(Process, {entry, TraceItem}).
+forward(Process, {_, Node, TraceItem}) ->
+    gen_server:cast(Process, {entry, Node, TraceItem}).
 
 start_link(ChildId) ->
     gen_server:start_link(?MODULE, {ChildId}, []).
@@ -82,21 +82,21 @@ init({ChildId}) ->
 handle_call(_Request, _From, State) ->
     {reply, {error, unknown_call}, State}.
 
-handle_cast({entry, TraceItem}, #?STATE{ fpid = FPID,
-                                         filename = Filename,
-                                         entries = E,
-                                         child_id = ChildId } = State) when E > ?MAX_ENTRIES ->
+handle_cast({entry, Node, TraceItem}, #?STATE{ fpid = FPID,
+                                               filename = Filename,
+                                               entries = E,
+                                               child_id = ChildId } = State) when E > ?MAX_ENTRIES ->
     LD = log_dir(),
-    TraceString = goanna_common:format_trace_item(ChildId, TraceItem),
+    TraceString = goanna_common:format_trace_item(Node, TraceItem),
     NewFileName = next_new_filename(ChildId, LD++Filename),
     {ok, NewFPID} = new_file_open(FPID, LD++NewFileName),
     ok = do_log(NewFPID, TraceString),
     {noreply, State#?STATE{ fpid = NewFPID, filename = NewFileName }};
-handle_cast({entry, TraceItem}, #?STATE{ fpid = FPID,
-                                           filename = Filename,
-                                           child_id = ChildId } = State) ->
+handle_cast({entry, Node, TraceItem}, #?STATE{ fpid = FPID,
+                                               filename = Filename,
+                                               child_id = ChildId } = State) ->
     LD = log_dir(),
-    TraceString = goanna_common:format_trace_item(ChildId, TraceItem),
+    TraceString = goanna_common:format_trace_item(Node, TraceItem),
     ok = do_log(FPID, TraceString),
     case maybe_rollover(ChildId, LD++Filename) of
         Filename ->

@@ -12,6 +12,6 @@ forward_test() ->
         ok,
         goanna_forward_shell:forward(
             self(),
-            {'childId', {trace_ts, self(), return_from, bla, {1517,250010,958719}}}
+            {'childId', node, {trace_ts, self(), return_from, bla, {1517,250010,958719}}}
         )
     ).

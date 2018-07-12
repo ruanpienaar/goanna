@@ -28,7 +28,7 @@ forward() ->
         ok,
         goanna_forward_file:forward(
             Pid,
-            {{1517,250010,958719}, {trace_ts, self(), return_from, bla, {1517,250010,958719}}}
+            {{1517,250010,958719}, node, {trace_ts, self(), return_from, bla, {1517,250010,958719}}}
         )
     ),
     ?assert(

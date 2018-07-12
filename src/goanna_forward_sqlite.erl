@@ -13,5 +13,5 @@ forward_init(_ChildId) ->
 %% ----------
 
 -spec forward(Process :: pid() | atom(), goanna_forward_callback_mod:goanna_trace_tuple()) -> ok.
-forward(_Process, {_, _TraceItem}) ->
+forward(_Process, {_, _Node, _TraceItem}) ->
     ok.

@@ -88,62 +88,62 @@ trace_abbreviations() ->
 -spec format_trace_item(atom(), goanna_forward_callback_mod:erlang_trace_data()) -> string().
 
 %% trace_ts
-format_trace_item(T,_Trace={trace_ts, _Pid, exception_from, Info, ReportedTS}) ->
+format_trace_item(Node, _Trace={trace_ts, _Pid, exception_from, Info, ReportedTS}) ->
     io_lib:format(
         "~s ~p ~.5s: ~1000p\n",
-        [get_time(ReportedTS), T, get_trace_abbreviation(exception_from), Info]
+        [get_time(ReportedTS), Node, get_trace_abbreviation(exception_from), Info]
     );
 
-format_trace_item(T,_Trace={trace_ts, _Pid, return_from, Info, ReportedTS}) ->
+format_trace_item(Node, _Trace={trace_ts, _Pid, return_from, Info, ReportedTS}) ->
     io_lib:format(
         "~s ~p ~.5s: ~1000p\n",
-        [get_time(ReportedTS), T, get_trace_abbreviation(return_from), Info]
+        [get_time(ReportedTS), Node, get_trace_abbreviation(return_from), Info]
     );
 
-format_trace_item(T,_Trace={trace_ts, _Pid, call, Info, ReportedTS}) ->
+format_trace_item(Node, _Trace={trace_ts, _Pid, call, Info, ReportedTS}) ->
     io_lib:format(
         "~s ~p ~.5s: ~1000p\n",
-        [get_time(ReportedTS), T, get_trace_abbreviation(call), Info]
+        [get_time(ReportedTS), Node, get_trace_abbreviation(call), Info]
     );
 
-format_trace_item(T,_Trace={trace_ts, _Pid, Label, Info, ReportedTS}) ->
+format_trace_item(Node, _Trace={trace_ts, _Pid, Label, Info, ReportedTS}) ->
     io_lib:format(
         "~s ~p ~.5s: ~1000p\n",
-        [get_time(ReportedTS), T, get_trace_abbreviation(Label), Info]
+        [get_time(ReportedTS), Node, get_trace_abbreviation(Label), Info]
     );
 
-format_trace_item(T,_Trace={trace_ts, _Pid, exception_from, Info, Extra, ReportedTS}) ->
+format_trace_item(Node, _Trace={trace_ts, _Pid, exception_from, Info, Extra, ReportedTS}) ->
     io_lib:format(
         "~s ~p ~.5s: ~p ~1000p\n",
-        [get_time(ReportedTS), T, get_trace_abbreviation(exception_from), Info, Extra]
+        [get_time(ReportedTS), Node, get_trace_abbreviation(exception_from), Info, Extra]
     );
 
-format_trace_item(T,_Trace={trace_ts, _Pid, return_from, Info, Extra, ReportedTS}) ->
+format_trace_item(Node, _Trace={trace_ts, _Pid, return_from, Info, Extra, ReportedTS}) ->
     io_lib:format(
         "~s ~p ~.5s: ~p ~1000p\n",
-        [get_time(ReportedTS), T, get_trace_abbreviation(return_from), Info, Extra]
+        [get_time(ReportedTS), Node, get_trace_abbreviation(return_from), Info, Extra]
     );
 
-format_trace_item(T,_Trace={trace_ts, _Pid, call, Info, Extra, ReportedTS}) ->
+format_trace_item(Node, _Trace={trace_ts, _Pid, call, Info, Extra, ReportedTS}) ->
     io_lib:format(
         "~s ~p ~.5s: ~p ~1000p\n",
-        [get_time(ReportedTS), T, get_trace_abbreviation(call), Info, Extra]
+        [get_time(ReportedTS), Node, get_trace_abbreviation(call), Info, Extra]
     );
 
-format_trace_item(T,_Trace={trace_ts, _Pid, Label, Info, Extra, ReportedTS}) ->
+format_trace_item(Node, _Trace={trace_ts, _Pid, Label, Info, Extra, ReportedTS}) ->
     io_lib:format(
         "~s ~p ~.5s: ~p ~1000p\n",
-        [get_time(ReportedTS), T, get_trace_abbreviation(Label), Info, Extra]
+        [get_time(ReportedTS), Node, get_trace_abbreviation(Label), Info, Extra]
     );
 
-format_trace_item(T,Trace={seq_trace, _Label, _SeqTraceInfo}) ->
-   io_lib:format("~p ~p", [T, Trace]);
+format_trace_item(Node, Trace={seq_trace, _Label, _SeqTraceInfo}) ->
+   io_lib:format("~p ~p", [Node, Trace]);
 
-format_trace_item(T,Trace={drop, _NumberOfDroppedItems}) ->
-    io_lib:format("~p ~p", [T, Trace]);
+format_trace_item(Node, Trace={drop, _NumberOfDroppedItems}) ->
+    io_lib:format("~p ~p", [Node, Trace]);
 
-format_trace_item(T,Trace) ->
-    io_lib:format("~p ~p", [T, Trace]).
+format_trace_item(Node, Trace) ->
+    io_lib:format("~p ~p", [Node, Trace]).
 
 get_time({_,_,Micro} = Timestamp) ->
     {{Year, Month, Day}, {Hour, Minute, Second}} = calendar:now_to_datetime(Timestamp),
