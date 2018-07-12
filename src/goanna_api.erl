@@ -234,9 +234,6 @@ stop_trace(Module, Function, Arity) ->
     % cluster_foreach_call({stop_trace, #trc_pattern{m=Module,f=Function,a=Arity}}).
     cluster_foreach_call({stop_trace, {Module, Function, Arity}}).
 
-%% TODO: stop trace_ms ???
-
-%%------------------------------------------------------------------------
 -spec clear_all_traces() -> ok.
 clear_all_traces() ->
     lists:foreach(
@@ -245,6 +242,31 @@ clear_all_traces() ->
             goanna_db:truncate_traces(ChildId)
         end, ets:tab2list(nodelist)
     ).
+
+-spec list_active_traces() -> list().
+list_active_traces() ->
+    goanna_db:all(tracelist).
+
+-spec pull_all_traces() -> list().
+pull_all_traces() ->
+    pull_traces(50).
+
+-spec pull_traces(non_neg_integer()) -> list().
+pull_traces(Size) ->
+    Nodes = ?MODULE:nodes(),
+    F = fun({Node,Cookie,_}, Acc) ->
+        case goanna_db:pull(goanna_node_sup:id(Node,Cookie), Size) of
+          [] ->
+            Acc;
+          Traces ->
+            %% TODO: add node, so that the FE can know
+            %% Which traces was for what...
+            [Traces|Acc]
+        end
+    end,
+    lists:flatten(lists:foldl(F, [], Nodes)).
+
+%% -------
 
 cluster_foreach_call(Cmd) ->
     lists:foreach(
@@ -278,26 +300,3 @@ call_node_infinity(ChildId, Cmd) ->
         ok ->
             ok
     end.
-
--spec list_active_traces() -> list().
-list_active_traces() ->
-    goanna_db:all(tracelist).
-
--spec pull_all_traces() -> list().
-pull_all_traces() ->
-    pull_traces(50).
-
--spec pull_traces(non_neg_integer()) -> list().
-pull_traces(Size) ->
-    Nodes = ?MODULE:nodes(),
-    F = fun({Node,Cookie,_}, Acc) ->
-        case goanna_db:pull(goanna_node_sup:id(Node,Cookie), Size) of
-          [] ->
-            Acc;
-          Traces ->
-            %% TODO: add node, so that the FE can know
-            %% Which traces was for what...
-            [Traces|Acc]
-        end
-    end,
-    lists:flatten(lists:foldl(F, [], Nodes)).

@@ -269,7 +269,10 @@ trace_steps(Node, Cookie, tcpip_port) ->
         -> {ok, pid(), pid()} | {error, term()}.
 tcpip_port_trace_steps(Node, Cookie) ->
     try
-        RelayPort = erlang:phash2(Node, 9000)+1023, % +1023, to make sure it's above the safe range
+        RelayPort = erlang:phash2(Node, 50000)+10000, % +1023, to make sure it's above the safe range
+
+        % Check if port is unused..
+
         [_Name, RelayHost] = string:tokens(atom_to_list(Node), "@"),
         case dbg_start(Node) of
             {ok, RemoteDbgPid} ->

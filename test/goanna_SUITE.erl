@@ -19,7 +19,16 @@
     remove_node/1,
     remove_goanna_node/1,
     remove_goanna_callbacks/1,
-    update_default_trace_options/1
+    update_default_trace_options/1,
+    set_data_retrival_method/1,
+    trace/1,
+    trace_ms/1,
+    trace_modules/1,
+    stop_trace/1,
+    clear_all_traces/1,
+    list_active_traces/1,
+    pull_all_traces/1
+
 ]).
 % Failure tests
 -export([
@@ -40,7 +49,15 @@ all_success() ->
         remove_node,
         remove_goanna_node,
         remove_goanna_callbacks,
-        update_default_trace_options
+        update_default_trace_options,
+        set_data_retrival_method,
+        trace,
+        trace_ms,
+        trace_modules,
+        stop_trace,
+        clear_all_traces,
+        list_active_traces,
+        pull_all_traces
     ].
 
 % all_failure() ->
@@ -48,10 +65,10 @@ all_success() ->
 
 %     ].
 
-        % unit_testing:try_test_fun(fun goanna_api_add_node/0))},
-        % unit_testing:try_test_fun(fun goanna_api_add_node_validation/0))},
-        % unit_testing:try_test_fun(fun remove_node/0))},
-        % unit_testing:try_test_fun(fun remove_node_validation/0))},
+% unit_testing:try_test_fun(fun goanna_api_add_node/0))},
+% unit_testing:try_test_fun(fun goanna_api_add_node_validation/0))},
+% unit_testing:try_test_fun(fun remove_node/0))},
+% unit_testing:try_test_fun(fun remove_node_validation/0))},
 % unit_testing:try_test_fun(fun update_default_trace_options/0))},
 % unit_testing:try_test_fun(fun update_default_trace_options_validation/0))},
 % unit_testing:try_test_fun(fun set_data_retrival_method_validation/0))},
@@ -343,6 +360,53 @@ update_default_trace_options(Config) ->
     %                 trace_max_time=false } = GoannaState6.
     #{trace_max_msg := false,
       trace_max_time := false} = GoannaState6.
+
+set_data_retrival_method(_Config) ->
+    ok.
+
+trace(Config) ->
+    {slaves, [Slave|_]} = lists:keyfind(slaves, 1, Config),
+    Cookie = erlang:get_cookie(),
+    Node = Slave,
+    [] = goanna_api:nodes(),
+    % Add node
+    {ok, GoannaNodePid} =
+        goanna_api:add_node(Node, Cookie, tcpip_port),
+    true = is_pid(GoannaNodePid),
+    F = fun() ->
+        goanna_api:nodes()
+    end,
+    % Check that node is added
+    unit_testing:wait_for_match(100, F, [{Node,Cookie,tcpip_port}]),
+
+
+    % trace/1
+    ok = goanna_api:trace(goanna_test_module),
+    % trace/2
+    % trace/3
+
+    [ ok = goanna_test_module:function() || _ <- lists:seq(1, 100) ],
+
+    ok.
+
+trace_ms(_Config) ->
+    ok.
+
+trace_modules(_Config) ->
+    ok.
+
+stop_trace(_Config) ->
+    ok.
+
+clear_all_traces(_Config) ->
+    ok.
+
+list_active_traces(_Config) ->
+    ok.
+
+pull_all_traces(_Config) ->
+    ok.
+
 
 %% ------
 new_node_name() ->
