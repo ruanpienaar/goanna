@@ -94,6 +94,7 @@ groups() ->
 
 % Suite level configuration function, executed before the first test case. (Optional)
 init_per_suite(Config) ->
+    [] = os:cmd("epmd -daemon"), % for travis ci
     {ok, _} = erlang_testing:start_distrib(new_node_name(), shortnames),
     ok = application:load(goanna),
     ok = application:set_env(goanna, default_trace_options, []),
