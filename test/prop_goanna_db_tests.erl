@@ -52,3 +52,4 @@ valid_response(R) when is_list(R) ->
     true;
 valid_response(_) ->
     false.
+

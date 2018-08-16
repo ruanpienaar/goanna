@@ -61,6 +61,13 @@ init([]) ->
 id(Node, Cookie) ->
     list_to_atom(atom_to_list(Node)++?NODE_COOKIE_SEP++atom_to_list(Cookie)).
 
+%% !!!!!!
+%% TODO: should we really have to use atoms for each node name ?
+%%       generating ATOM's are generally never a great idea.
+
+%% TODO: Should we really use a pre defined seperator between node and cookie?
+%%       seems a bit shitty
+
 -spec to_node(atom()) -> list().
 to_node(ChildId) when is_atom(ChildId) ->
     [Node, Cookie] = string:tokens(atom_to_list(ChildId), ?NODE_COOKIE_SEP),
