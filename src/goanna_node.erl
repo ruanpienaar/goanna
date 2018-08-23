@@ -270,7 +270,7 @@ trace_steps(Node, Cookie, tcpip_port) ->
 tcpip_port_trace_steps(Node, Cookie) ->
     try
         RelayPort = erlang:phash2(Node, 50000)+10000, % +1023, to make sure it's above the safe range
-
+        io:format("RelayPort ~p\n", [RelayPort]),
         io:format("~s", [os:cmd( io_lib:format("netstat -an | grep ~p", [RelayPort]) )]),
 
         % Check if port is unused..
