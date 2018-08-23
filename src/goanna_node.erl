@@ -271,6 +271,8 @@ tcpip_port_trace_steps(Node, Cookie) ->
     try
         RelayPort = erlang:phash2(Node, 50000)+10000, % +1023, to make sure it's above the safe range
 
+        io:format("~s", [os:cmd( io_lib:format("netstat -an | grep ~p", [RelayPort]) )]),
+
         % Check if port is unused..
 
         [_Name, RelayHost] = string:tokens(atom_to_list(Node), "@"),
