@@ -113,7 +113,6 @@ setup_trace_pid(#{
         } = State) ->
     case trace_steps(Node, Cookie, Type) of
         {error,{badrpc,nodedown}} ->
-            % exit({remote_node_down});
             terminate(Node, Cookie, PrevTraceCLientPid);
         {ok, RemoteDbgPid, TraceCLientPid} ->
             State#{
@@ -145,6 +144,7 @@ loop(#{ node := Node,
             true = goanna_db:store_trace(ChildId, Node, Trace),
             loop(State#{ trace_msg_count => TMC+1 });
         {push_data, Mod, Amount} ->
+            %io:format("~p\n", [State]),
             #{data_forward_process := DWP} = State,
             ok = goanna_db:push(DWP, ChildId, Mod, Amount),
             loop(State);
@@ -252,7 +252,7 @@ terminate(Node, Cookie, TraceCLientPid) ->
     true = goanna_db:delete_node(Node, Cookie),
     true = erlang:unregister(goanna_node_sup:id(Node, Cookie)),
     true = unlink(TraceCLientPid),
-    ok.
+    goanna_node_sup:delete_child(Node).
 
 %% -----------------------------------------------------------------------------------
 %% DBG steps
@@ -269,17 +269,12 @@ trace_steps(Node, Cookie, tcpip_port) ->
         -> {ok, pid(), pid()} | {error, term()}.
 tcpip_port_trace_steps(Node, Cookie) ->
     try
-        % RelayPort = erlang:phash2(Node, 50000)+10000,
-        % io:format("RelayPort ~p\n", [RelayPort]),
-        % io:format("~s", [os:cmd( io_lib:format("netstat -an | grep ~p", [RelayPort]) )]),
-
-        RelayPort = 0, % Let OS give us a working port...
-
         [_Name, RelayHost] = string:tokens(atom_to_list(Node), "@"),
         case dbg_start(Node) of
             {ok, RemoteDbgPid} ->
                 ok = wait_for_remote_code_server(Node),
-                PortGenerator = rpc:call(Node, dbg, trace_port, [ip, RelayPort]),
+                % Use port 0 so that the OS can assign a unused port
+                PortGenerator = rpc:call(Node, dbg, trace_port, [ip, 0]),
                 case rpc:call(Node, dbg, tracer, [port, PortGenerator]) of
                     {error, already_started} ->
                         ok;
@@ -287,11 +282,13 @@ tcpip_port_trace_steps(Node, Cookie) ->
                         ok;
                     ERR ->
                         io:format("Starting tracer on remote node failed ~p\n\n", [ERR]),
-                        exit(self())
+                        ERR
                 end,
                 {ok,_MatchDesc} = dbg_p(Node),
                 {ok, Fun} = handler_fun(goanna_node_sup:id(Node, Cookie), tcpip_port),
-                TraceCLientPid = dbg:trace_client(ip, {RelayHost, RelayPort}, {Fun, ok}),
+                {ok, TracePort} = rpc:call(Node, dbg, trace_port_control, [get_listen_port]),
+                io:format("TracePort ~p\n", [TracePort]),
+                TraceCLientPid = dbg:trace_client(ip, {RelayHost, TracePort}, {Fun, ok}),
                 true = link(TraceCLientPid),
                 {ok, RemoteDbgPid, TraceCLientPid};
             Error ->
@@ -363,10 +360,8 @@ dbg_p(Node) ->
 handler_fun(ChildId, tcpip_port) ->
     {ok, fun
         (Trace={trace_ts, _Pid, _Label, _Info, _ReportedTS}, _) ->
-            % goanna_node_sup:id(Node, Cookie) ! {trace_item, Trace};
             ChildId ! {trace_item, Trace};
         (Trace={trace_ts, _Pid, _Label, _Info, _Extra, _ReportedTS}, _) ->
-            % goanna_node_sup:id(Node, Cookie) ! {trace_item, Trace};
              ChildId ! {trace_item, Trace};
         (_Trace={drop, NumberOfDroppedItems}, _X) ->
             io:format("! Remote DBG dropped ~p message. Goanna could not consume fast enough!~n", [NumberOfDroppedItems]);
