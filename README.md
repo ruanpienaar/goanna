@@ -60,7 +60,7 @@ Beam shell example:
  ]}
 ```
 
-So once you've added some nodes, you can enable a trace pattern with {Module}, {Module, Function}, {Module, Function, Arity} or write your own trace match spec as a String "ets:lookup(Cust, customers) when Cust==homer -> return", with help of redbug's string parsing to dbg trace match spec code.
+So once you've added some nodes, you can enable a trace pattern with (Module), (Module, Function), (Module, Function, Arity) or write your own trace match spec as a String ("ets:lookup(Cust, customers) when Cust==homer -> return"), with help of redbug's string parsing to dbg trace match spec code.
 
 Tracing Example:
 ```Erlang
