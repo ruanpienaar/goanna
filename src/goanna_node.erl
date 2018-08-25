@@ -296,8 +296,8 @@ terminate(#{ node := Node,
         true = goanna_db:delete_node(Node, Cookie),
         true = unlink(TraceCLientPid)
     catch
-        C:E:Stacktrace ->
-            io:format("terminate TRY ~p ~p ~p\n", [C, E, Stacktrace])
+        C:E ->
+            io:format("terminate TRY ~p ~p ~p\n", [C, E])
     end,
     terminate.
 
