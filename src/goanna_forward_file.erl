@@ -147,7 +147,8 @@ all_logs(Dir, ChildId) ->
     end, []).
 
 file_open(Filename) ->
-    file:open(Filename, [append, write, raw, {delayed_write, 65536, 500}]).
+    % TODO: {delayed_write, 65536, 500} is crashing the unit test in 21.0
+    file:open(Filename, [append, write, raw]).
 
 new_file_open(FPID, Filename) ->
     ok = file:close(FPID),

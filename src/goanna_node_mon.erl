@@ -2,7 +2,8 @@
 
 -export([
     start_link/0,
-    monitor/2
+    monitor/2,
+    all_nodes/0
 ]).
 
 start_link() ->
@@ -13,6 +14,16 @@ start_link() ->
 
 monitor(Node, NodePid) ->
     ?MODULE ! {monitor, Node, NodePid}.
+
+all_nodes() ->
+    ?MODULE ! {all_nodes, self()},
+    receive
+        A ->
+            A
+    after
+        5000 ->
+            timeout
+    end.
 
 loop(Nodes) ->
     receive
@@ -25,6 +36,9 @@ loop(Nodes) ->
                         true = erlang:demonitor(Ref),
                         lists:keyreplace(Node, 1, Nodes, node_entry(Node, NodePid))
                  end);
+        {all_nodes, ReqPid} ->
+            ReqPid ! Nodes,
+            loop(Nodes);
         D = {'DOWN', _, process, NodePid, Reason}
                 when Reason == normal orelse
                      Reason == {remote_node_down} ->

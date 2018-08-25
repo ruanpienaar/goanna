@@ -64,9 +64,15 @@ add_node(Node, Cookie, Type) when Type =:= tcpip_port orelse
             {ok, _Pid} =
                 hawk:add_node(Node, Cookie,
                     goanna_connect_callbacks(Node, Cookie, Type),
-                    goanna_disconnect_callbacks(Node)
+                    goanna_disconnect_callbacks(Node, Cookie)
                 );
+        % {error, connecting} ->
+            % TODO: check callbacks
+            % if present, just carry on, if NOT add callbacks
+        %     ok;
         {ok, Pid, _CallbackNames} ->
+            % TODO: check callbacks
+            % if present, just carry on, if NOT add callbacks
             {ok, {Pid, updated}} = hawk:remove_connect_callback(Node, goanna_connect),
             {ok, {Pid, updated}} = hawk:remove_disconnect_callback(Node, goanna_disconnect),
             io:format("removed old callbacks...~n", []),
@@ -83,7 +89,7 @@ add_node_callbacks(Node, Cookie, Type) ->
     % Maybe check if they are not already there...
     % {ok, _Pid, _Callbacks} = hawk:node_exists(Node),
     [{CN,CF}] = goanna_connect_callbacks(Node, Cookie, Type),
-    [{DN,DF}] = goanna_disconnect_callbacks(Node),
+    [{DN,DF}] = goanna_disconnect_callbacks(Node, Cookie),
     case hawk:add_connect_callback(Node, {CN,CF}) of
         {ok, {_,duplicate}} ->
             ok;
@@ -99,11 +105,14 @@ add_node_callbacks(Node, Cookie, Type) ->
 
 goanna_connect_callbacks(Node, Cookie, Type) ->
     [{goanna_connect, fun() ->
+        io:format("Starting Goanna Node\n", []),
         {ok,_}=goanna_node_sup:start_child(Node, Cookie, Type) end}].
 
-goanna_disconnect_callbacks(Node) ->
+goanna_disconnect_callbacks(Node, Cookie) ->
+    ChildId = goanna_node_sup:id(Node,Cookie),
     [{goanna_disconnect, fun() ->
-        ok=goanna_node_sup:delete_child(Node) end}].
+        io:format("Stopping Goanna Node\n", []),
+        ok=goanna_node_sup:delete_child(ChildId) end}].
 
 % @doc removes from goanna and hawk, by using the disconnect
 % callbacks

@@ -169,6 +169,10 @@ new_file_open() ->
         Filename
     ),
     NewFilename = goanna_forward_file:new_filename(?CHILD_ID, 1),
+    ?assertEqual(
+        "gff.goanna_forward_file_tests.2",
+        NewFilename
+    ),
     {ok, FPID} = goanna_forward_file:file_open(LogDir++Filename),
     {ok, NewFPID} = goanna_forward_file:new_file_open(FPID, LogDir++NewFilename),
     ?assertEqual(

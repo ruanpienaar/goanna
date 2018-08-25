@@ -34,20 +34,20 @@ start_child(Node, Cookie, Type) ->
         ?CHILD(ChildId, goanna_node, worker, [Node, Cookie, Type, ChildId])
     ).
 
+% TODO: fix type return in other places.
 -spec delete_child(node()) -> ok | {error, no_such_node}.
-delete_child(Node) ->
-    case goanna_db:lookup([nodelist, Node]) of
-        [{Node, Cookie,_}] ->
-            ChildId = id(Node,Cookie),
+delete_child(ChildId) ->
+    % case goanna_db:lookup([nodelist, Node]) of
+    %     [{Node, Cookie,_}] ->
             case supervisor:terminate_child(?MODULE, ChildId) of
                 ok ->
                     ok = supervisor:delete_child(?MODULE, ChildId);
                 {error,not_found} ->
-                    ok
-            end;
-        [] ->
-            {error, no_such_node}
-    end.
+                    {error, no_such_node}
+            end.
+    %     [] ->
+    %         {error, no_such_node}
+    % end.
 
 %% ===================================================================
 %% Supervisor callbacks
