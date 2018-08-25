@@ -297,7 +297,7 @@ terminate(#{ node := Node,
         true = unlink(TraceCLientPid)
     catch
         C:E ->
-            io:format("terminate TRY ~p ~p ~p\n", [C, E])
+            io:format("terminate TRY ~p ~p\n", [C, E])
     end,
     terminate.
 
