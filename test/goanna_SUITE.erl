@@ -157,9 +157,9 @@ init_per_testcase(TestCase, Config) ->
 end_per_testcase(_TestCase, Config) ->
     ok = dbg:stop_clear(),
     true = ets:delete(node_table),
-    ok = lists:foreach(fun({N,_C,_T}) ->
-        goanna_api:remove_node(N),
-        goanna_api:remove_goanna_node(N)
+    ok = lists:foreach(fun({Node, _Cookie,_T}) ->
+        goanna_api:remove_node(Node),
+        goanna_api:remove_goanna_node(Node)
     end, goanna_api:nodes()),
     ok = lists:foreach(fun(HN) ->
         ok = hawk:remove_node(HN)

@@ -23,7 +23,7 @@
 start_link(Node, Cookie, Type, ChildId) when is_atom(Node) ->
     State = env_state(initial_state(Node, Cookie, Type, ChildId)),
     {ok, proc_lib:spawn_link(fun() ->
-        io:format("goanna_node start_link ~p\n", [self()]),
+        goanna_log:log("goanna_node start_link ~p\n", [self()]),
         false = process_flag(trap_exit, true),
         goanna_node_mon:monitor(Node, self()),
         true = erlang:register(goanna_node_sup:id(Node, Cookie), self()),
@@ -74,7 +74,7 @@ check_and_init_forward_mod(ChildId, Mod) ->
         true ->
             Mod:forward_init(ChildId);
         false ->
-            io:format("[~p] Forwarding callback module ~p "
+            goanna_log:log("[~p] Forwarding callback module ~p "
                       "missing required behaviour functions...Removing ChildId ~p...",
                       [?MODULE, Mod, ChildId]),
             [Node, _Cookie] = goanna_node_sup:to_node(ChildId),
@@ -117,7 +117,7 @@ setup_trace_pid(#{
         type := Type,
         trace_client_pid := PrevTraceCLientPid
         } = State) ->
-    io:format("setup_trace_pid ~p\n", [State]),
+    goanna_log:log("setup_trace_pid ~p\n", [State]),
     case trace_steps(Node, Cookie, Type) of
         {error,{badrpc,nodedown}} ->
             terminate(State);
@@ -146,35 +146,35 @@ loop(#{ node := Node,
     receive
         %% NoReply casts
         {trace_item, _Trace} when not Tracing ->
-            io:format("{trace_item, _Trace} when not Tracing ->\n", []),
+            goanna_log:log("{trace_item, _Trace} when not Tracing ->\n", []),
             loop(State);
         {trace_item, Trace} when Tracing ->
-            io:format("{trace_item, Trace} when Tracing ->\n", []),
+            goanna_log:log("{trace_item, Trace} when Tracing ->\n", []),
             true = goanna_db:store_trace(ChildId, Node, Trace),
             loop(State#{ trace_msg_count => TMC+1 });
         {push_data, Mod, Amount} ->
-            io:format("{push_data, Mod, Amount} ->\n", []),
-            %io:format("~p\n", [State]),
+            goanna_log:log("{push_data, Mod, Amount} ->\n", []),
+            %goanna_log:log("~p\n", [State]),
             #{data_forward_process := DWP} = State,
             ok = goanna_db:push(DWP, ChildId, Mod, Amount),
             loop(State);
         {stop_all_trace_patterns} when not Tracing ->
-            io:format("{stop_all_trace_patterns} when not Tracing ->\n", []),
+            goanna_log:log("{stop_all_trace_patterns} when not Tracing ->\n", []),
             loop(State);
         {stop_all_trace_patterns} when Tracing ->
-            io:format("{stop_all_trace_patterns} when Tracing ->\n", []),
+            goanna_log:log("{stop_all_trace_patterns} when Tracing ->\n", []),
             NewState = stop_all_traces_return_state(State),
             dbg_trace_steps(NewState);
         %% Reply calls
         {{update_default_trace_options}, Reply} ->
-            io:format("{{update_default_trace_options}, Reply} ->\n", []),
+            goanna_log:log("{{update_default_trace_options}, Reply} ->\n", []),
             %% Leave the existing traces, user has to manually stop them,
             %% all of the new traces will have the newly set default value.
             NewState = env_state(State),
             Reply ! ok,
             loop(NewState);
         {{update_data_retrival_method}, Reply} ->
-            io:format("{{update_data_retrival_method}, Reply} ->\n", []),
+            goanna_log:log("{{update_data_retrival_method}, Reply} ->\n", []),
             case PTT of
                 % busy using "pull", so no push timer to cancel,
                 undefined ->
@@ -189,7 +189,7 @@ loop(#{ node := Node,
             Reply ! ok,
             loop(NewState2);
         {{trace, TrcPatterns}, Reply} ->
-            io:format("{{trace, TrcPatterns}, Reply} ->\n", []),
+            goanna_log:log("{{trace, TrcPatterns}, Reply} ->\n", []),
             cancel_timer(TT),
             % Start tracing TrcPatterns
             ok = trace(ChildId, TrcPatterns, Node),
@@ -200,28 +200,28 @@ loop(#{ node := Node,
                 trace_timer_tref => timer:send_after(TMT, {stop_all_trace_patterns})
             });
         {{stop_trace, _TrcPattern}, Reply} when not Tracing ->
-            io:format("{{stop_trace, _TrcPattern}, Reply} when not Tracing ->\n", []),
+            goanna_log:log("{{stop_trace, _TrcPattern}, Reply} when not Tracing ->\n", []),
             Reply ! ok,
             loop(State);
         {{stop_trace, TrcPattern}, Reply} when Tracing ->
-            io:format("{{stop_trace, TrcPattern}, Reply} when Tracing ->\n", []),
+            goanna_log:log("{{stop_trace, TrcPattern}, Reply} when Tracing ->\n", []),
             cancel_timer(TT),
             true = goanna_db:delete_child_id_trace_pattern(Node, Cookie, TrcPattern),
             remote_dbg_ctpl(Node, TrcPattern),
             Reply ! ok,
             loop(State);
         {{stop_all_trace_patterns}, Reply} when not Tracing ->
-            io:format("{{stop_all_trace_patterns}, Reply} when not Tracing ->\n", []),
+            goanna_log:log("{{stop_all_trace_patterns}, Reply} when not Tracing ->\n", []),
             Reply ! ok,
             loop(State);
         {{stop_all_trace_patterns}, Reply} when Tracing ->
-            io:format("{{stop_all_trace_patterns}, Reply} when Tracing ->\n", []),
+            goanna_log:log("{{stop_all_trace_patterns}, Reply} when Tracing ->\n", []),
             cancel_timer(TT),
             NewState = stop_all_traces_return_state(State),
             Reply ! ok,
             dbg_trace_steps(NewState);
         {'EXIT', TraceCLientPid, _Reason} ->
-            io:format("{'EXIT', TraceCLientPid, _Reason} ->\n", []),
+            goanna_log:log("{'EXIT', TraceCLientPid, _Reason} ->\n", []),
             % State2 = State#{ trace_client_pid => undefined },
             case setup_trace_pid(State) of
                 terminate ->
@@ -230,10 +230,10 @@ loop(#{ node := Node,
                     loop(State2)
             end;
         {'EXIT', PrevTraceCLientPid, _Reason} ->
-            io:format("{'EXIT', PrevTraceCLientPid, _Reason} ->\n", []),
+            goanna_log:log("{'EXIT', PrevTraceCLientPid, _Reason} ->\n", []),
             loop(State);
         {'EXIT', FromPid, shutdown} ->
-            io:format("{'EXIT', FromPid, shutdown} ->\n", []),
+            goanna_log:log("{'EXIT', FromPid, shutdown} ->\n", []),
             case whereis(goanna_node_sup) of
                 FromPid ->
                     terminate = terminate(State),
@@ -242,11 +242,11 @@ loop(#{ node := Node,
                     loop(State)
             end;
         {system, From, _Msg = get_state} ->
-            io:format("{system, From, _Msg = get_state} ->\n", []),
+            goanna_log:log("{system, From, _Msg = get_state} ->\n", []),
             {_, _} = gen:reply(From, State),
             loop(State);
         {system, From, _Msg = get_status} ->
-            io:format("{system, From, _Msg = get_status} ->\n", []),
+            goanna_log:log("{system, From, _Msg = get_status} ->\n", []),
             SysState = running,
             Parent = whereis(goanna_node_sup),
             Mod = ?MODULE,
@@ -254,12 +254,12 @@ loop(#{ node := Node,
             {_, _} = gen:reply(From, get_status(SysState, Parent, Mod, _Debug=false, _Misc=[Name, State, Mod, undefined, undefined])),
             loop(State);
         Any ->
-            io:format("Any ->\n", []),
-            io:format("UNEXPECTED ~p ~p loop recv : ~p~n", [self(), erlang:process_info(self(), registered_name), Any]),
+            goanna_log:log("Any ->\n", []),
+            goanna_log:log("UNEXPECTED ~p ~p loop recv : ~p~n", [self(), erlang:process_info(self(), registered_name), Any]),
             loop(State)
     end;
 loop(State) ->
-    io:format("WHY DID THIS HAPPEN ~p\n", [State]),
+    goanna_log:log("WHY DID THIS HAPPEN ~p\n", [State]),
     loop(State).
 
 terminate() ->
@@ -297,7 +297,7 @@ terminate(#{ node := Node,
         true = unlink(TraceCLientPid)
     catch
         C:E ->
-            io:format("terminate TRY ~p ~p\n", [C, E])
+            goanna_log:log("terminate TRY ~p ~p\n", [C, E])
     end,
     terminate.
 
@@ -305,7 +305,7 @@ terminate(#{ node := Node,
 %% DBG steps
 
 trace_steps(Node, Cookie, tcpip_port) ->
-    % io:format("going to call tcpip_port_trace_steps~n", []),
+    % goanna_log:log("going to call tcpip_port_trace_steps~n", []),
     tcpip_port_trace_steps(Node, Cookie).
 % trace_steps(Node, Cookie, file) ->
 %     file_port_trace_steps(Node, Cookie).
@@ -328,23 +328,23 @@ tcpip_port_trace_steps(Node, Cookie) ->
                     {ok, RemoteDbgPid} ->
                         ok;
                     ERR ->
-                        io:format("Starting tracer on remote node failed ~p\n\n", [ERR]),
+                        goanna_log:log("Starting tracer on remote node failed ~p\n\n", [ERR]),
                         ERR
                 end,
                 {ok,_MatchDesc} = dbg_p(Node),
                 {ok, Fun} = handler_fun(goanna_node_sup:id(Node, Cookie), tcpip_port),
                 {ok, TracePort} = rpc:call(Node, dbg, trace_port_control, [get_listen_port]),
-                %io:format("TracePort ~p\n", [TracePort]),
+                %goanna_log:log("TracePort ~p\n", [TracePort]),
                 TraceCLientPid = dbg:trace_client(ip, {RelayHost, TracePort}, {Fun, ok}),
                 true = link(TraceCLientPid),
                 {ok, RemoteDbgPid, TraceCLientPid};
             Error ->
-                io:format("tcpip_port_trace_steps error ~p~n", [Error]),
+                goanna_log:log("tcpip_port_trace_steps error ~p~n", [Error]),
                 Error
         end
     catch
         C:R ->
-            io:format("was going to tcpip_port_trace_steps Encountered problem~n~p ~p~n",
+            goanna_log:log("was going to tcpip_port_trace_steps Encountered problem~n~p ~p~n",
                 [C, R]),
             exit(self())
     end.
@@ -366,7 +366,7 @@ tcpip_port_trace_steps(Node, Cookie) ->
 %             {ok, Fun} = handler_fun(Node, Cookie, file),
 %             CLientPid = dbg:trace_client(file, "/Users/rp/hd2/code/goanna/tracefile", {Fun, ok}),
 %             true = link(CLientPid),
-%             io:format("RemoteDbgPid : ~p~n", [RemoteDbgPid]),
+%             goanna_log:log("RemoteDbgPid : ~p~n", [RemoteDbgPid]),
 %             {ok, RemoteDbgPid};
 %         Error ->
 %             Error
@@ -383,7 +383,7 @@ dbg_start(Node) ->
                 {badrpc,{'EXIT',{{case_clause,DbgPid},_}}}} ->
             {ok, DbgPid};
         C:E ->
-            io:format("[~p] line ~p -> {~p, ~p}", [?MODULE, ?LINE, C, E]),
+            goanna_log:log("[~p] line ~p -> {~p, ~p}", [?MODULE, ?LINE, C, E]),
             {error, dbg_start_failed}
     end.
 
@@ -411,7 +411,7 @@ handler_fun(ChildId, tcpip_port) ->
         (Trace={trace_ts, _Pid, _Label, _Info, _Extra, _ReportedTS}, _) ->
              ChildId ! {trace_item, Trace};
         (_Trace={drop, NumberOfDroppedItems}, _X) ->
-            io:format("! Remote DBG dropped ~p message. Goanna could not consume fast enough!~n", [NumberOfDroppedItems]);
+            goanna_log:log("! Remote DBG dropped ~p message. Goanna could not consume fast enough!~n", [NumberOfDroppedItems]);
         (end_of_trace, _) ->
             ok;
         (_Trace, _X) ->
@@ -426,7 +426,7 @@ handler_fun(ChildId, tcpip_port) ->
 %         %     stop_tracing ->
 %         %         ok
 %         % end
-%         %%io:format("FILE TRACE: ~p\n", [Trace])
+%         %%goanna_log:log("FILE TRACE: ~p\n", [Trace])
 %         ok
 %     end}.
 

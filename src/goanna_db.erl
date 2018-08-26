@@ -54,11 +54,11 @@ init() ->
 
 -spec init_node(list()) -> {ok, node_obj()}.
 init_node([Node, Cookie, Type, ChildId]) ->
-    io:format("goanna_db init_node ~p\n", [Node]),
+    goanna_log:log("goanna_db init_node ~p\n", [Node]),
     NodeObj = create_node_obj(Node, Cookie, Type),
     true = ets:insert(nodelist, NodeObj),
     undefined = ets:info(ChildId, size),
-    io:format("Create ChildId table \n", []),
+    goanna_log:log("Create ChildId table \n", []),
     ChildId = ets:new(ChildId, [public, ordered_set, named_table, {read_concurrency, true}]),
     {ok, NodeObj}.
 
@@ -104,11 +104,11 @@ all(_Tbl) ->
 
 -spec delete_node(atom(), atom()) -> true | {error, term()}.
 delete_node(Node, Cookie) ->
-    io:format("goanna_db delete_node ~p\n", [Node]),
+    goanna_log:log("goanna_db delete_node ~p\n", [Node]),
     ChildId = goanna_node_sup:id(Node, Cookie),
-    io:format("goanna_db delete child ID table ~p\n", [Node]),
+    goanna_log:log("goanna_db delete child ID table ~p\n", [Node]),
     true = ets:delete(ChildId),
-    io:format("goanna_db delete nodelist entry ~p\n", [Node]),
+    goanna_log:log("goanna_db delete nodelist entry ~p\n", [Node]),
     true = ets:delete(nodelist, Node).
 
 -spec delete_child_id_tracelist(node(), atom()) -> ok | {error, term()}.

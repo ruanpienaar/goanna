@@ -28,7 +28,7 @@ all_nodes() ->
 loop(Nodes) ->
     receive
         {monitor, Node, NodePid} ->
-            % io:format("Going to monitor ~p~n", [NodePid]),
+            % goanna_log:log("Going to monitor ~p~n", [NodePid]),
             loop(case lists:keyfind(Node, 1, Nodes) of
                     false ->
                         [node_entry(Node, NodePid) | Nodes];
@@ -46,14 +46,15 @@ loop(Nodes) ->
                 {Node, NodePid, _Ref} ->
                     loop(lists:keydelete(Node, 1, Nodes));
                 false ->
-                    io:format("[~p] unknown DOWN ~p~n", [?MODULE, D]),
+                    goanna_log:log("[~p] unknown DOWN ~p~n", [?MODULE, D]),
                     loop(Nodes)
             end;
         A ->
-            io:format("[~p] received UNKNOWN message: ~p~n", [?MODULE, A]),
+            goanna_log:log("[~p] received UNKNOWN message: ~p~n", [?MODULE, A]),
             loop(Nodes)
     end.
 
 node_entry(Node, NodePid) ->
-    %io:format("~p monitor reference ~p~n", [?MODULE, Ref]),
-    {Node, NodePid, erlang:monitor(process, NodePid)}.
+    Ref = erlang:monitor(process, NodePid),
+    goanna_log:log("~p monitor reference ~p~n", [?MODULE, Ref]),
+    {Node, NodePid, Ref}.
