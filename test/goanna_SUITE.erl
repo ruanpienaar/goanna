@@ -383,6 +383,7 @@ trace(Config) ->
 
     % trace/1
     ok = goanna_api:trace(goanna_test_module),
+    
     % trace/2
     % trace/3
 

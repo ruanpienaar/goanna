@@ -132,6 +132,7 @@ setup_trace_pid(#{
 loop(#{ trace_msg_count := TMC,
         trace_max_msg := TMM
         } = State) when TMC >= TMM ->
+    debug("stop all traces\n", []),
     dbg_trace_steps(stop_all_traces_return_state(State));
 loop(#{ node := Node,
         cookie := Cookie,
@@ -511,3 +512,6 @@ format_status(_Opt, StatusData) ->
              {"State", State}
             ]
     }].
+
+debug(Fmt, Args) ->
+    io:format(Fmt, Args).
