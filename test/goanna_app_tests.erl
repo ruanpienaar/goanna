@@ -2,24 +2,6 @@
 -include_lib("eunit/include/eunit.hrl").
 
 goanna_app_unit_test_() ->
-    % {setup,
-    %  % Setup Fixture
-    %  fun() ->
-    %      xxx
-    %  end,
-    %  % Cleanup Fixture
-    %  fun(xxx) ->
-    %      ok
-    %  end,
-    %  % List of tests
-    %  [
-    %    % Example test
-    %    {"goanna_app:start/2",
-    %         ?_assert(unit_testing:try_test_fun(fun start/0))},
-    %    {"goanna_app:func1/0",
-    %         ?_assert(unit_testing:try_test_fun(fun func1/0))}
-    %  ]
-    % }.
     unit_testing:setup(
         % Setup
         fun() ->
@@ -92,7 +74,15 @@ start() ->
     ?assertEqual(
         {ok, pid},
         goanna_app:start(normal, normal)
+    ),
+    unit_testing:mock_expect(goanna_sup, start_link, 0, failure_response),
+    ?assertEqual(
+        failure_response,
+        goanna_app:start(normal, normal)
     ).
 
 stop() ->
-    ok.
+    ?assertEqual(
+        ok,
+        goanna_app:stop(state)
+    ).
