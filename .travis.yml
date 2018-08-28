@@ -26,7 +26,7 @@ install:
   - wget https://s3.amazonaws.com/rebar3/rebar3 && chmod +x rebar3
 
 script:
-  ./rebar3 xref && ./rebar3 eunit -vc && sleep 2 && ./rebar3 ct -cv && ./rebar3 cover -v && ./rebar3 coveralls send
+  ./rebar3 xref && ./rebar3 eunit -v -c && ./rebar3 ct -c --readable true --verbose && ./rebar3 cover -v && ./rebar3 coveralls send
 
 env:
   global:
