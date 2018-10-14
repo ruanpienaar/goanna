@@ -72,7 +72,15 @@ check_and_init_forward_mod(ChildId, Mod) ->
     % TODO: build a behaviour checker...
     case erlang:function_exported(Mod, forward, 2) of
         true ->
-            Mod:forward_init(ChildId);
+            try
+                {ok, _} = Mod:forward_init(ChildId)
+            catch
+                E:R ->
+                    goanna_log:log("[~p] Forwarding callback module ~p "
+                        " forward_init failed ~p ~p\n",
+                        [?MODULE, Mod, E, R]),
+                    throw({forward_module, Mod, function_not_exported})
+            end;
         false ->
             goanna_log:log("[~p] Forwarding callback module ~p "
                       "missing required behaviour functions...Removing ChildId ~p...",

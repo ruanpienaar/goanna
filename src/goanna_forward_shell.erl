@@ -10,7 +10,8 @@
 
 -spec forward_init(atom()) -> {ok, pid() | atom()} | {error, term()}.
 forward_init(_ChildId) ->
-    ok.
+    %% Todo, should we spawn a seperate process ?
+    {ok, self()}.
 
 -spec forward(_Process :: pid() | atom(), goanna_forward_callback_mod:goanna_trace_tuple()) -> ok.
 forward(_Process, {_Ts, Node, TraceItem}) ->

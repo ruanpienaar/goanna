@@ -147,5 +147,5 @@ format_trace_item(Node, Trace) ->
 
 get_time({_,_,Micro} = Timestamp) ->
     {{Year, Month, Day}, {Hour, Minute, Second}} = calendar:now_to_datetime(Timestamp),
-    lists:flatten(io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0w.~3..0sZ",
-                  [Year, Month, Day, Hour, Minute, Second, integer_to_list(Micro)])).
+    lists:flatten(io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0w.~p",
+                  [Year, Month, Day, Hour, Minute, Second, Micro])).
