@@ -2,8 +2,8 @@
 -include_lib("eunit/include/eunit.hrl").
 
 forward_init_test() ->
-    ?assertEqual(
-        ok,
+    ?assertMatch(
+        {ok, _},
         goanna_forward_shell:forward_init('childId')
     ).
 
