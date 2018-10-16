@@ -3,6 +3,13 @@
     start_link/4
 ]).
 
+-ifdef(TEST).
+-export([
+    initial_state/4,
+    stop_all_traces_return_state/1
+]).
+-endif.
+
 %% -----------------------------------------------------------------------------------
 %% @doc
 %%
@@ -20,14 +27,17 @@
 %% @end
 %% -----------------------------------------------------------------------------------
 
-start_link(Node, Cookie, Type, ChildId) when is_atom(Node) ->
+start_link(Node, Cookie, Type, ChildId) when is_atom(Node) andalso 
+                                             is_atom(Cookie) andalso
+                                             Type == tcpip_port andalso %% TODO: add bin_file type
+                                             is_atom(ChildId) ->
     State = env_state(initial_state(Node, Cookie, Type, ChildId)),
     {ok, proc_lib:spawn_link(fun() ->
         goanna_log:log("goanna_node start_link ~p\n", [self()]),
         false = process_flag(trap_exit, true),
         goanna_node_mon:monitor(Node, self()),
         true = erlang:register(goanna_node_sup:id(Node, Cookie), self()),
-        {ok,_} = goanna_db:init_node([Node, Cookie, Type, ChildId]),
+        {ok, _} = goanna_db:init_node([Node, Cookie, Type, ChildId]),
         dbg_trace_steps(State)
     end)}.
 
@@ -44,7 +54,7 @@ initial_state(Node, Cookie, Type, ChildId) ->
        previous_trace_client_pid => undefined
     }.
 
-env_state(#{child_id := ChildId} = State) ->
+env_state(#{child_id := ChildId, node := Node} = State) ->
     DefaultTraceOpts =
         application:get_env(goanna, default_trace_options, []),
     MaxTraceTime =
@@ -56,7 +66,7 @@ env_state(#{child_id := ChildId} = State) ->
             pull ->
                 {pull, undefined};
             F = {push, _Interval, Mod, _Amount} ->
-                {ok, FPidOrName} = check_and_init_forward_mod(ChildId, Mod),
+                {ok, FPidOrName} = check_and_init_forward_mod(Node, ChildId, Mod),
                 {F, FPidOrName}
         end,
     State#{
@@ -66,27 +76,35 @@ env_state(#{child_id := ChildId} = State) ->
         data_forward_process => DataForwardProcess
     }.
 
--spec check_and_init_forward_mod(atom(), atom()) -> ok | {ok, pid() | atom()}.
-check_and_init_forward_mod(ChildId, Mod) ->
-    {module, Mod} = c:l(Mod), % Make sure the default is loaded...ugly...
-    % TODO: build a behaviour checker...
-    case erlang:function_exported(Mod, forward, 2) of
-        true ->
-            try
-                {ok, _} = Mod:forward_init(ChildId)
-            catch
-                E:R ->
+-spec check_and_init_forward_mod(node(), atom(), atom()) -> ok | {ok, pid() | atom()}.
+check_and_init_forward_mod(Node, ChildId, Mod) ->
+    case c:l(Mod) of % Make sure the default is loaded...ugly...
+        {module, Mod} ->
+            % TODO: build a behaviour checker...
+            case erlang:function_exported(Mod, forward, 2) andalso
+                 erlang:function_exported(Mod, forward_init, 1)
+            of
+                true ->
+                    try
+                        {ok, _} = Mod:forward_init(ChildId)
+                    catch
+                        E:R ->
+                            goanna_log:log("[~p] Forwarding callback module ~p "
+                                " forward_init failed ~p ~p\n",
+                                [?MODULE, Mod, E, R]),
+                            goanna_api:remove_goanna_node(Node),
+                            throw({forward_module, Mod, forward_init_crashed, E, R})
+                    end;
+                false ->
                     goanna_log:log("[~p] Forwarding callback module ~p "
-                        " forward_init failed ~p ~p\n",
-                        [?MODULE, Mod, E, R]),
-                    throw({forward_module, Mod, function_not_exported})
+                              "missing required behaviour functions...Removing ChildId ~p...",
+                              [?MODULE, Mod, ChildId]),
+                    goanna_api:remove_goanna_node(Node),
+                    throw({Mod, not_goanna_forward_module_compatible})
             end;
-        false ->
-            goanna_log:log("[~p] Forwarding callback module ~p "
-                      "missing required behaviour functions...Removing ChildId ~p...",
-                      [?MODULE, Mod, ChildId]),
-            [Node, _Cookie] = goanna_node_sup:to_node(ChildId),
-            goanna_api:remove_goanna_node(Node)
+        {error, nofile} ->
+            goanna_api:remove_goanna_node(Node),
+            throw({Mod, does_not_exist})
     end.
 
 %% -----------------------------------------------------------------------------------

@@ -21,7 +21,7 @@ goanna_app_unit_test_() ->
         end,
         % Cleanup
         fun(_) ->
-            ok
+            ok = application:unload(goanna)
         end,
         % Tests
         [

@@ -65,12 +65,6 @@ all_success() ->
 
 %     ].
 
-% unit_testing:try_test_fun(fun goanna_api_add_node/0))},
-% unit_testing:try_test_fun(fun goanna_api_add_node_validation/0))},
-% unit_testing:try_test_fun(fun remove_node/0))},
-% unit_testing:try_test_fun(fun remove_node_validation/0))},
-% unit_testing:try_test_fun(fun update_default_trace_options/0))},
-% unit_testing:try_test_fun(fun update_default_trace_options_validation/0))},
 % unit_testing:try_test_fun(fun set_data_retrival_method_validation/0))},
 % unit_testing:try_test_fun(fun set_data_retrival_method/0))},
 % unit_testing:try_test_fun(fun trace/0))},
@@ -88,13 +82,15 @@ suite() ->
 % For declaring test case groups. (Optional)
 groups() ->
     [
-        {success_test_group, [shuffle,{repeat,10}], all_success()}
+        {success_test_group, 
+            [shuffle,{repeat,10}], 
+            % [],
+            all_success()}
      %  ,{failure_test_group, [shuffle,{repeat,10}], all_failure()}
     ].
 
 % Suite level configuration function, executed before the first test case. (Optional)
 init_per_suite(Config) ->
-    [] = os:cmd("epmd -daemon"), % for travis ci
     {ok, _} = erlang_testing:start_distrib(new_node_name(), shortnames),
     ok = application:load(goanna),
     ok = application:set_env(goanna, default_trace_options, []),
@@ -103,7 +99,6 @@ init_per_suite(Config) ->
 
 % Suite level configuration function, executed after the last test case. (Optional)
 end_per_suite(Config) ->
-    ct:log("~p~n", [application:which_applications()]),
     ok = application:stop(goanna),
     {dep_apps, DepApps} = lists:keyfind(dep_apps, 1, Config),
     [ ok = application:stop(D) || D <- DepApps, D =/= goanna ],
@@ -123,7 +118,6 @@ end_per_group(_GroupName, _Config) ->
 
 % Configuration function for a testcase, executed before each test case. (Optional)
 init_per_testcase(TestCase, Config) ->
-
     case TestCase of
         update_default_trace_options ->
             % {ok, _} = dbg:tracer(),
@@ -133,33 +127,25 @@ init_per_testcase(TestCase, Config) ->
         _ ->
             ok
     end,
-
     ok = application:set_env(hawk, connection_retries, 600),
     ok = application:set_env(hawk, conn_retry_wait, 100),
+    % Set to goanna env default ( to simplify clean/empty startup )
+    ok = application:set_env(goanna, data_retrival_method, pull),
     node_table = ets:new(node_table, [public, named_table, set]),
     {ok, Host} = inet:gethostname(),
     N1 = new_node_name(),
-    % N2 = new_node_name(),
-    % N3 = new_node_name(),
-    % N4 = new_node_name(),
-    % N5 = new_node_name(),
     Slaves = erlang_testing:slaves_setup([
         {Host, N1}
-       % ,{Host, N2}
-       % ,{Host, N3}
-       % ,{Host, N4}
-       % ,{Host, N5}
     ]),
-    ct:log("init_per_testcase Slaves -> ~p~n", [Slaves]),
     [{slaves, Slaves} | Config].
 
 % Configuration function for a testcase, executed after each test case. (Optional)
 end_per_testcase(_TestCase, Config) ->
-    ok = dbg:stop_clear(),
+    % ok = dbg:stop_clear(),
     true = ets:delete(node_table),
     ok = lists:foreach(fun({Node, _Cookie,_T}) ->
-        goanna_api:remove_node(Node),
-        goanna_api:remove_goanna_node(Node)
+        ok = goanna_api:remove_node(Node),
+        ok = goanna_api:remove_goanna_node(Node)
     end, goanna_api:nodes()),
     ok = lists:foreach(fun(HN) ->
         ok = hawk:remove_node(HN)
@@ -290,40 +276,16 @@ update_default_trace_options(Config) ->
     end,
     % Check that node is added
     unit_testing:wait_for_match(100, F, [{Node,Cookie,tcpip_port}]),
-    ct:pal("1"),
     GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
-    ct:pal("2"),
     %% Then get the default values
     {ok, []} = application:get_env(goanna, default_trace_options),
-    ct:pal("3"),
-
     GoannaState = sys:get_state(GoannaNode_Cookie),
-
-    ct:pal("4"),
-
     #{trace_max_msg := false,
       trace_max_time := false} = GoannaState,
-
-    ct:pal("5"),
-
-    % #?GOANNA_STATE{ trace_max_msg=false,
-    %                 trace_max_time=false } = GoannaState,
-    % ?assertMatch(
-    %     #{trace_max_msg := false,
-    %       trace_max_time := false},
-    %     GoannaState
-    % ),
-
     %% Change the default values, Then Check the newly set values
     ok = goanna_api:update_default_trace_options([{time, 1000}]),
-
-    ct:pal("6"),
-
     % Keep calling to check if the call was made
     {ok,[{time, 1000}]} = application:get_env(goanna, default_trace_options),
-
-    ct:pal("7"),
-
     GoannaState2 = sys:get_state(GoannaNode_Cookie),
     % #?GOANNA_STATE{ trace_max_msg=false,
     %                 trace_max_time=1000 } = GoannaState2,
@@ -362,8 +324,43 @@ update_default_trace_options(Config) ->
     #{trace_max_msg := false,
       trace_max_time := false} = GoannaState6.
 
-set_data_retrival_method(_Config) ->
-    ok.
+set_data_retrival_method(Config) ->
+    {slaves, [Slave|_]} = lists:keyfind(slaves, 1, Config),
+    Cookie = erlang:get_cookie(),
+    Node = Slave,
+    [] = goanna_api:nodes(),
+    % Add node
+    {ok, GoannaNodePid} =
+        goanna_api:add_node(Node, Cookie, tcpip_port),
+    true = is_pid(GoannaNodePid),
+    F = fun() ->
+        goanna_api:nodes()
+    end,
+    % Check that node is added
+    unit_testing:wait_for_match(100, F, [{Node,Cookie,tcpip_port}]),
+    GoannaNode_Cookie = goanna_node_sup:id(Node,Cookie),
+
+    ct:pal("-> 1 <- "),
+
+    % Pull is default data retrival method
+    GoannaState1 = sys:get_state(GoannaNode_Cookie),
+    ct:pal("-> State ~p\n <-", [GoannaState1]),
+    #{data_retrival_method := pull,
+      data_forward_process := undefined } = GoannaState1,
+
+    ct:pal("-> 2 <- "),
+
+    % Set data retrival method to push
+    ok = goanna_api:set_data_retrival_method({push, 60000, goanna_forward_shell, 100}),
+    GoannaState2 = sys:get_state(GoannaNode_Cookie),
+    #{data_retrival_method := {push,60000,goanna_forward_shell,100},
+      data_forward_process := DFP,
+      push_timer_tref := PTT } = GoannaState2,
+
+    ct:pal("-> 3 <- "),
+
+    true = DFP =/= undefined,
+    true = PTT =/= undefined.
 
 trace(Config) ->
     {slaves, [Slave|_]} = lists:keyfind(slaves, 1, Config),

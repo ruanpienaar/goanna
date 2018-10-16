@@ -5,6 +5,12 @@
 
 -include_lib("goanna.hrl").
 
+
+% TODO:
+% Symetric function
+% the   to_node(ChildID)->Node, Cookie   ==    id(Node, Cookie) -> ChildId
+
+
 prop_id() ->
     ?FORALL([Node, Cookie], [atom(), atom()], id(Node, Cookie)).
 

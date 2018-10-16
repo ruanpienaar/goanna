@@ -173,11 +173,12 @@ update_default_trace_options(_) ->
     {error, badarg}.
 
 %% TODO: create a separate call, for all the other sys.config app-env values...
+%%       create function per node
 -spec set_data_retrival_method({push, non_neg_integer(), atom()} | pull) -> ok.
-set_data_retrival_method(DRM=pull) ->
+set_data_retrival_method(DRM = pull) ->
     ok = application:set_env(goanna, data_retrival_method, DRM),
     cluster_foreach_call({update_data_retrival_method});
-set_data_retrival_method(DRM={push, _Interval, _Mod, _Amount}) ->
+set_data_retrival_method(DRM = {push, _Interval, _Mod, _Amount}) ->
     ok = application:set_env(goanna, data_retrival_method, DRM),
     cluster_foreach_call({update_data_retrival_method});
 set_data_retrival_method(_) ->

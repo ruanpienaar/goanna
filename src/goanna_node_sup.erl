@@ -26,7 +26,7 @@
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
--spec start_child(node(), atom(), erlang_distribution | file | tcpip_port)
+-spec start_child(node(), atom(), file | tcpip_port)
         -> {ok, supervisor:child()} | {error,{already_started,pid()}}.
 start_child(Node, Cookie, Type) ->
     ChildId = id(Node,Cookie),
