@@ -6,6 +6,12 @@
     format_trace_item/2
 ]).
 
+-ifdef(TEST).
+-export([
+    get_time/1
+]).
+-endif.
+
 -spec prop_value(term(), proplists:proplist(), term()) -> term().
 prop_value(Field, Opts, Default) ->
     case lists:keyfind(Field, 1, Opts) of
@@ -63,87 +69,69 @@ get_trace_abbreviation(gc_start) ->
 get_trace_abbreviation(gc_end) ->
     "GCE".
 
--spec trace_abbreviations() -> ok.
 trace_abbreviations() ->
-    io:format("receive                      REC~n", []),
-    io:format("send                         S~n", []),
-    io:format("send_to_non_existing_process STNEP~n", []),
-    io:format("call                         C~n", []),
-    io:format("return_to                    RT~n", []),
-    io:format("return_from                  RF~n", []),
-    io:format("exception_from               EF~n", []),
-    io:format("spawn                        SPW~n", []),
-    io:format("exit                         EXI~n", []),
-    io:format("link                         LI~n", []),
-    io:format("unlink                       ULI~n", []),
-    io:format("getting_linked               GLI~n", []),
-    io:format("getting_unlinked             GULI~n", []),
-    io:format("register                     REG~n", []),
-    io:format("unregister                   UNREG~n", []),
-    io:format("in                           I~n", []),
-    io:format("out                          O~n", []),
-    io:format("gc_start                     GCS~n", []),
-    io:format("gc_end                       GCE~n", []).
+    L = ['receive', send, send_to_non_existing_process, call, return_to, 
+         return_from, exception_from, spawn, exit, link, unlink, 
+         getting_linked, getting_unlinked, register, unregister, 
+         in, out, gc_start, gc_end],
+    lists:foreach(fun(I) -> io:format("~p\t~p\n", [I, get_trace_abbreviation(I)]) end, L).
 
 -spec format_trace_item(atom(), goanna_forward_callback_mod:erlang_trace_data()) -> string().
-
-%% trace_ts
 format_trace_item(Node, _Trace={trace_ts, _Pid, exception_from, Info, ReportedTS}) ->
     io_lib:format(
         "~s ~p ~.5s: ~1000p\n",
         [get_time(ReportedTS), Node, get_trace_abbreviation(exception_from), Info]
     );
-
 format_trace_item(Node, _Trace={trace_ts, _Pid, return_from, Info, ReportedTS}) ->
     io_lib:format(
         "~s ~p ~.5s: ~1000p\n",
         [get_time(ReportedTS), Node, get_trace_abbreviation(return_from), Info]
     );
-
 format_trace_item(Node, _Trace={trace_ts, _Pid, call, Info, ReportedTS}) ->
     io_lib:format(
         "~s ~p ~.5s: ~1000p\n",
         [get_time(ReportedTS), Node, get_trace_abbreviation(call), Info]
     );
-
 format_trace_item(Node, _Trace={trace_ts, _Pid, Label, Info, ReportedTS}) ->
     io_lib:format(
         "~s ~p ~.5s: ~1000p\n",
         [get_time(ReportedTS), Node, get_trace_abbreviation(Label), Info]
     );
-
 format_trace_item(Node, _Trace={trace_ts, _Pid, exception_from, Info, Extra, ReportedTS}) ->
     io_lib:format(
         "~s ~p ~.5s: ~p ~1000p\n",
         [get_time(ReportedTS), Node, get_trace_abbreviation(exception_from), Info, Extra]
     );
-
 format_trace_item(Node, _Trace={trace_ts, _Pid, return_from, Info, Extra, ReportedTS}) ->
     io_lib:format(
         "~s ~p ~.5s: ~p ~1000p\n",
         [get_time(ReportedTS), Node, get_trace_abbreviation(return_from), Info, Extra]
     );
-
 format_trace_item(Node, _Trace={trace_ts, _Pid, call, Info, Extra, ReportedTS}) ->
     io_lib:format(
         "~s ~p ~.5s: ~p ~1000p\n",
         [get_time(ReportedTS), Node, get_trace_abbreviation(call), Info, Extra]
     );
-
 format_trace_item(Node, _Trace={trace_ts, _Pid, Label, Info, Extra, ReportedTS}) ->
     io_lib:format(
         "~s ~p ~.5s: ~p ~1000p\n",
         [get_time(ReportedTS), Node, get_trace_abbreviation(Label), Info, Extra]
     );
-
 format_trace_item(Node, Trace={seq_trace, _Label, _SeqTraceInfo}) ->
-   io_lib:format("~p ~p", [Node, Trace]);
-
+   io_lib:format(
+        "~p ~p", 
+        [Node, Trace]
+    );
 format_trace_item(Node, Trace={drop, _NumberOfDroppedItems}) ->
-    io_lib:format("~p ~p", [Node, Trace]);
-
+    io_lib:format(
+        "~p ~p", 
+        [Node, Trace]
+    );
 format_trace_item(Node, Trace) ->
-    io_lib:format("~p ~p", [Node, Trace]).
+    io_lib:format(
+        "~p ~p", 
+        [Node, Trace]
+    ).
 
 get_time({_,_,Micro} = Timestamp) ->
     {{Year, Month, Day}, {Hour, Minute, Second}} = calendar:now_to_datetime(Timestamp),

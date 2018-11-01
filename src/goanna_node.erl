@@ -226,6 +226,11 @@ loop(#{ node := Node,
                 trace_msg_count => 0,
                 trace_timer_tref => timer:send_after(TMT, {stop_all_trace_patterns})
             });
+
+        % TODO: create a trace run for Custom trace opts, Num Messages and time
+        %       irrespective of the system trace messages and time
+        % {{trace, TrcOpts, TrcPatterns}, Reply} ->
+
         {{stop_trace, _TrcPattern}, Reply} when not Tracing ->
             goanna_log:log("{{stop_trace, _TrcPattern}, Reply} when not Tracing ->\n", []),
             Reply ! ok,

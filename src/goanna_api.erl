@@ -21,7 +21,7 @@
 -export([
     trace/1, trace/2, trace/3,
     trace_ms/1,
-    trace_modules/1,
+    % trace_modules/1,
     stop_trace/0, stop_trace/1, stop_trace/2, stop_trace/3,
     clear_all_traces/0,
     % recv_trace/2,
@@ -37,7 +37,7 @@
 -include_lib("goanna.hrl").
 
 %%------------------------------------------------------------------------
-%% Goanna start-up helper only
+% Goanna start-up helper only
 start() ->
     {ok, _} = application:ensure_all_started(goanna).
 
@@ -66,10 +66,6 @@ add_node(Node, Cookie, Type) when Type =:= tcpip_port orelse
                     goanna_connect_callbacks(Node, Cookie, Type),
                     goanna_disconnect_callbacks(Node, Cookie)
                 );
-        % {error, connecting} ->
-            % TODO: check callbacks
-            % if present, just carry on, if NOT add callbacks
-        %     ok;
         {ok, Pid, _CallbackNames} ->
             % TODO: check callbacks
             % if present, just carry on, if NOT add callbacks
@@ -187,7 +183,6 @@ set_data_retrival_method(_) ->
 -spec trace(atom()) -> ok | {error, badarg}.
 trace(Module) when is_atom(Module) ->
     try
-        %cluster_foreach_call({trace, [#trc_pattern{m=Module}]})
         cluster_foreach_call({trace, [{Module}]})
     catch
         C:R ->
@@ -198,14 +193,12 @@ trace(_) ->
 
 -spec trace(atom(), atom()) -> ok | {error, badarg}.
 trace(Module, Function) when is_atom(Module), is_atom(Function) ->
-    % cluster_foreach_call({trace, [#trc_pattern{m=Module,f=Function}]});
     cluster_foreach_call({trace, [{Module, Function}]});
 trace(_, _) ->
     {error, badarg}.
 
 -spec trace(atom(), atom(), integer()) -> ok | {error, badarg}.
 trace(Module, Function, Arity) when is_atom(Module), is_atom(Function), is_integer(Arity) ->
-    % cluster_foreach_call({trace, [#trc_pattern{m=Module,f=Function,a=Arity}]});
     cluster_foreach_call({trace, [{Module, Function, Arity}]});
 trace(_, _, _) ->
     {error, badarg}.
@@ -213,21 +206,20 @@ trace(_, _, _) ->
 -spec trace_ms(string()) -> ok | {error, badarg}.
 trace_ms(MsStr) when is_list(MsStr) ->
     {{M,F,A},MatchSpec,[_Flag]} = redbug_msc:transform(MsStr),
-    % cluster_foreach_call({trace, [#trc_pattern{m=M,f=F,a=A,ms=MatchSpec}]}).
     cluster_foreach_call({trace, [{M,F,A,MatchSpec}]}).
 
--spec trace_modules(list( atom() )) -> ok.
-trace_modules(Modules) ->
-    trace_modules(Modules, [{time, false}, {messages, false}]).
+% -spec trace_modules(list( atom() )) -> ok.
+% trace_modules(Modules) ->
+%     trace_modules(Modules, [{time, false}, {messages, false}]).
 
--spec trace_modules(list(), list()) -> ok.
-trace_modules(Modules, Opts) ->
-    cluster_foreach_call_infinity({trace, Opts, [ {M} || M <- Modules,
-        %% TODO: build some safetynet...
-        ( M /= erlang orelse
-          M /= lists orelse
-          M /= io )
-    ]}).
+% -spec trace_modules(list(), list()) -> ok.
+% trace_modules(Modules, Opts) ->
+%     cluster_foreach_call({trace, Opts, [ {M} || M <- Modules,
+%         %% TODO: build some safetynet...
+%         ( M /= erlang orelse
+%           M /= lists orelse
+%           M /= io )
+%     ]}, infinity).
 
 -spec stop_trace() -> ok.
 stop_trace() ->
@@ -236,17 +228,14 @@ stop_trace() ->
 %% TODO: add stop_trace_ms
 -spec stop_trace(atom()) -> ok.
 stop_trace(Module) ->
-    % cluster_foreach_call({stop_trace, #trc_pattern{m=Module}}).
     cluster_foreach_call({stop_trace, {Module}}).
 
 -spec stop_trace(atom(), atom()) -> ok.
 stop_trace(Module, Function) ->
-    %cluster_foreach_call({stop_trace, #trc_pattern{m=Module,f=Function}}).
     cluster_foreach_call({stop_trace, {Module, Function}}).
 
 -spec stop_trace(atom(), atom(), integer()) -> ok.
 stop_trace(Module, Function, Arity) ->
-    % cluster_foreach_call({stop_trace, #trc_pattern{m=Module,f=Function,a=Arity}}).
     cluster_foreach_call({stop_trace, {Module, Function, Arity}}).
 
 -spec clear_all_traces() -> ok.
@@ -284,34 +273,28 @@ pull_traces(Size) ->
 %% -------
 
 cluster_foreach_call(Cmd) ->
+    cluster_foreach_call(Cmd, 5000).
+
+cluster_foreach_call(Cmd, Timeout) ->
     lists:foreach(
         fun({Node, Cookie, _Type}) ->
             ChildId = goanna_node_sup:id(Node, Cookie),
-            call(ChildId, Cmd)
+            call(ChildId, Cmd, Timeout)
         end, ets:tab2list(nodelist)
     ).
 
-cluster_foreach_call_infinity(Cmd) ->
-    lists:foreach(
-        fun({Node, Cookie, _Type}) ->
-            ChildId = goanna_node_sup:id(Node, Cookie),
-            call_node_infinity(ChildId, Cmd)
-        end, ets:tab2list(nodelist)
-    ).
-
-call(ChildId, Cmd) ->
+call(ChildId, Cmd, infinity) ->
+    whereis(ChildId) ! {Cmd, self()},
+    receive
+        ok ->
+            ok
+    end;
+call(ChildId, Cmd, Timeout) ->
     whereis(ChildId) ! {Cmd, self()},
     receive
         ok ->
             ok
     after
-        10000 ->
+        Timeout ->
             timeout
-    end.
-
-call_node_infinity(ChildId, Cmd) ->
-    whereis(ChildId) ! {Cmd, self()},
-    receive
-        ok ->
-            ok
     end.
