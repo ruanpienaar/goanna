@@ -275,7 +275,7 @@ loop(#{ node := Node,
             end;
         {system, From, _Msg = get_state} ->
             goanna_log:log("{system, From, _Msg = get_state} ->\n", []),
-            {_, _} = gen:reply(From, State),
+            _ = gen:reply(From, State),
             loop(State);
         {system, From, _Msg = get_status} ->
             goanna_log:log("{system, From, _Msg = get_status} ->\n", []),
