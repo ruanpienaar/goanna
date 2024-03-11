@@ -14,11 +14,11 @@ deep-clean: clean
 	@./rebar3 delete-deps
 
 setup_dialyzer:
-	dialyzer --build_plt --apps erts kernel stdlib runtime_tools syntax_tools deps/*/ebin ./ebin
+	dialyzer --build_plt --apps deps/*/ebin ./ebin
 	dialyzer --add_to_plt ebin
 
 dialyzer: compile
-	dialyzer ebin
+	@./rebar3 dialyzer
 
 analyze: checkplt
 	@./rebar3 skip_deps=true dialyze
@@ -31,3 +31,8 @@ checkplt: buildplt
 
 rebar3:
 	@ls rebar3 || wget https://s3.amazonaws.com/rebar3/rebar3 && chmod +x rebar3
+	
+xref:
+	@./rebar3 xref
+        
+check: compile xref dialyzer test

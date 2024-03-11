@@ -1,6 +1,6 @@
 {application, goanna,
  [
-  {description, ""},
+  {description, "Goanna tracing application"},
   {vsn, "1"},
   {registered, []},
   {applications, [kernel,
